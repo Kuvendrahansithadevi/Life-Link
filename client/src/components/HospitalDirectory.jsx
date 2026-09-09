@@ -8,7 +8,6 @@ import {
   Clock,
   Calendar,
 } from "lucide-react";
-import { HOSPITALS } from "../data/constants";
 
 function BookingModal({ hospital, onClose }) {
   const [form, setForm] = useState({ name: "", phone: "", date: "", time: "", specialist: hospital.specialists[0] });
@@ -122,11 +121,11 @@ function BookingModal({ hospital, onClose }) {
   );
 }
 
-export default function HospitalDirectory() {
+export default function HospitalDirectory({ hospitals }) {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(null);
 
-  const filtered = HOSPITALS.filter((h) => {
+  const filtered = hospitals.filter((h) => {
     const q = query.toLowerCase();
     return (
       h.name.toLowerCase().includes(q) ||

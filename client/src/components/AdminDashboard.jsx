@@ -1,190 +1,232 @@
-import React from "react";
+import React, { useState } from "react";
 import {
-  LayoutDashboard,
+  Heart,
+  Activity,
   LogOut,
   Users,
   Droplet,
   ClipboardList,
   Building2,
-  CheckCircle2,
+  Plus,
   Trash2,
+  MapPin,
+  Clock,
+  BadgeCheck,
 } from "lucide-react";
-import { HOSPITALS, HOSPITAL_BLOOD_REQUESTS } from "../data/constants";
+import { BG_PATTERN_URL } from "../utils/helpers";
 
 function StatCard({ icon: Icon, label, value, accent }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-slate-900 p-4">
+    <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-900/5">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-stone-500">{label}</p>
         <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${accent}`}>
           <Icon className="h-4 w-4 text-white" />
         </span>
       </div>
-      <p className="mt-2 text-2xl font-bold text-white">{value}</p>
+      <p className="mt-2 text-2xl font-bold text-stone-900">{value}</p>
     </div>
   );
 }
 
-export default function AdminDashboard({ users, requests, onRemoveRequest, onLogout }) {
+const emptyHospitalForm = {
+  name: "",
+  address: "",
+  phone: "",
+  specialists: "",
+  waitTime: "15 min",
+  availableNow: true,
+};
+
+export default function AdminDashboard({ users, requests, hospitals, onAddHospital, onRemoveHospital, onLogout }) {
   const donors = users.filter((u) => u.isDonor);
 
+  const [hospitalForm, setHospitalForm] = useState(emptyHospitalForm);
+  const [added, setAdded] = useState(false);
+
+  const submitHospital = () => {
+    if (!hospitalForm.name.trim() || !hospitalForm.address.trim() || !hospitalForm.phone.trim()) return;
+    const specialistsList = hospitalForm.specialists
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    onAddHospital({
+      id: "h" + Date.now(),
+      name: hospitalForm.name.trim(),
+      address: hospitalForm.address.trim(),
+      phone: hospitalForm.phone.trim(),
+      specialists: specialistsList.length ? specialistsList : ["General Physician"],
+      availableNow: hospitalForm.availableNow,
+      distance: "New",
+      rating: 4.0,
+      waitTime: hospitalForm.waitTime.trim() || "15 min",
+    });
+    setHospitalForm(emptyHospitalForm);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2500);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="border-b border-white/10 bg-slate-900/60 px-6 py-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600">
-              <LayoutDashboard className="h-5 w-5 text-white" />
+    <div
+      className="min-h-screen bg-stone-50 text-stone-900"
+      style={{ backgroundImage: BG_PATTERN_URL, backgroundRepeat: "repeat" }}
+    >
+      <div className="border-b border-stone-200 bg-white/90 px-6 py-4 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-700 text-red-500 shadow-md">
+              <Heart className="h-5 w-5" fill="currentColor" />
+              <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 ring-2 ring-white">
+                <Activity className="h-2.5 w-2.5 text-white" />
+              </span>
             </span>
             <div>
-              <p className="text-sm font-bold tracking-tight">LIFE LINK Admin</p>
-              <p className="text-xs text-slate-400">Network overview & moderation</p>
+              <p className="text-sm font-bold tracking-tight text-stone-900">LIFE LINK Admin</p>
+              <p className="text-xs text-stone-500">Network overview & hospital management</p>
             </div>
           </div>
           <button
             onClick={onLogout}
-            className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-2 text-xs font-medium text-slate-200 hover:bg-white/10"
+            className="flex items-center gap-1.5 rounded-lg border border-stone-300 px-3 py-2 text-xs font-medium text-stone-700 hover:bg-stone-50"
           >
             <LogOut className="h-3.5 w-3.5" /> Log out
           </button>
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl px-6 py-8">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <h1 className="text-xl font-semibold text-stone-900">Network overview</h1>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard icon={Users} label="Registered users" value={users.length} accent="bg-emerald-600" />
           <StatCard icon={Droplet} label="Registered donors" value={donors.length} accent="bg-red-600" />
           <StatCard icon={ClipboardList} label="Active blood requests" value={requests.length} accent="bg-amber-600" />
-          <StatCard icon={Building2} label="Partner hospitals" value={HOSPITALS.length} accent="bg-sky-600" />
+          <StatCard icon={Building2} label="Partner hospitals" value={hospitals.length} accent="bg-sky-600" />
         </div>
 
-        {/* Registered users */}
-        <div className="mt-8 overflow-hidden rounded-xl border border-white/10 bg-slate-900">
-          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-            <Users className="h-4 w-4 text-emerald-400" />
-            <h2 className="text-sm font-semibold">Registered users</h2>
+        {/* Add a hospital */}
+        <div className="mt-8 rounded-xl border border-emerald-100 bg-white p-5 shadow-sm shadow-emerald-900/5">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-stone-800">
+            <Plus className="h-4 w-4 text-emerald-700" /> Add a hospital
+          </h2>
+          <p className="mb-4 text-xs text-stone-500">
+            New hospitals appear immediately in users' "Find Care" directory, ready for appointment booking.
+          </p>
+          <div
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitHospital();
+            }}
+          >
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-stone-600">Hospital name</label>
+              <input
+                value={hospitalForm.name}
+                onChange={(e) => setHospitalForm({ ...hospitalForm, name: e.target.value })}
+                placeholder="e.g. City Care Hospital"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-stone-600">Address</label>
+              <input
+                value={hospitalForm.address}
+                onChange={(e) => setHospitalForm({ ...hospitalForm, address: e.target.value })}
+                placeholder="Street, area, city"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Phone number</label>
+              <input
+                value={hospitalForm.phone}
+                onChange={(e) => setHospitalForm({ ...hospitalForm, phone: e.target.value })}
+                placeholder="+91"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Typical wait time</label>
+              <input
+                value={hospitalForm.waitTime}
+                onChange={(e) => setHospitalForm({ ...hospitalForm, waitTime: e.target.value })}
+                placeholder="e.g. 15 min"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-stone-600">Specialists (comma separated)</label>
+              <input
+                value={hospitalForm.specialists}
+                onChange={(e) => setHospitalForm({ ...hospitalForm, specialists: e.target.value })}
+                placeholder="e.g. Cardiologist, General Physician, Pediatrician"
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-stone-700 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={hospitalForm.availableNow}
+                onChange={(e) => setHospitalForm({ ...hospitalForm, availableNow: e.target.checked })}
+                className="h-4 w-4 rounded border-stone-300 text-emerald-600 focus:ring-emerald-600"
+              />
+              Available for booking now
+            </label>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="px-4 py-2.5 font-medium">Username</th>
-                  <th className="px-4 py-2.5 font-medium">Email</th>
-                  <th className="px-4 py-2.5 font-medium">Address</th>
-                  <th className="px-4 py-2.5 font-medium">Blood group</th>
-                  <th className="px-4 py-2.5 font-medium">Donor status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} className="border-b border-white/5 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-white">{u.username}</td>
-                    <td className="px-4 py-2.5 text-slate-300">{u.email}</td>
-                    <td className="px-4 py-2.5 text-slate-300">{u.address}</td>
-                    <td className="px-4 py-2.5 text-slate-300">{u.bloodGroup}</td>
-                    <td className="px-4 py-2.5">
-                      {u.isDonor ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-400">
-                          <CheckCircle2 className="h-3 w-3" /> Donor
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-white/5 px-2 py-1 text-xs font-medium text-slate-400">
-                          Not a donor
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <button
+            type="button"
+            onClick={submitHospital}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-emerald-600 sm:w-auto sm:px-6"
+          >
+            <Plus className="h-4 w-4" /> Add hospital
+          </button>
+          {added && (
+            <p className="mt-2 text-xs font-medium text-emerald-700">
+              Hospital added — it now appears in the user app's "Find Care" directory.
+            </p>
+          )}
         </div>
 
-        {/* Active blood requests */}
-        <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-slate-900">
-          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-            <Droplet className="h-4 w-4 text-red-400" fill="currentColor" />
-            <h2 className="text-sm font-semibold">Community blood requests</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="px-4 py-2.5 font-medium">Blood group</th>
-                  <th className="px-4 py-2.5 font-medium">Quantity</th>
-                  <th className="px-4 py-2.5 font-medium">Location</th>
-                  <th className="px-4 py-2.5 font-medium">Posted by</th>
-                  <th className="px-4 py-2.5 font-medium">Time</th>
-                  <th className="px-4 py-2.5 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
-                      No active requests right now.
-                    </td>
-                  </tr>
-                )}
-                {requests.map((r) => (
-                  <tr key={r.id} className="border-b border-white/5 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-white">{r.bloodGroup}</td>
-                    <td className="px-4 py-2.5 text-slate-300">
-                      {r.quantity} unit{r.quantity > 1 ? "s" : ""}
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-300">{r.location}</td>
-                    <td className="px-4 py-2.5 text-slate-300">{r.postedBy}</td>
-                    <td className="px-4 py-2.5 text-slate-400">{r.time}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={() => onRemoveRequest(r.id)}
-                        className="inline-flex items-center gap-1 rounded-md border border-white/10 px-2 py-1 text-xs text-slate-300 hover:bg-white/10 hover:text-red-300"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" /> Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Hospital feed */}
-        <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-slate-900">
-          <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-            <Building2 className="h-4 w-4 text-sky-400" />
-            <h2 className="text-sm font-semibold">Hospital blood request feed</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-slate-400">
-                  <th className="px-4 py-2.5 font-medium">Hospital</th>
-                  <th className="px-4 py-2.5 font-medium">Blood group</th>
-                  <th className="px-4 py-2.5 font-medium">Quantity</th>
-                  <th className="px-4 py-2.5 font-medium">Distance</th>
-                  <th className="px-4 py-2.5 font-medium">Posted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {HOSPITAL_BLOOD_REQUESTS.map((hr) => (
-                  <tr key={hr.id} className="border-b border-white/5 last:border-0">
-                    <td className="px-4 py-2.5 font-medium text-white">{hr.hospital}</td>
-                    <td className="px-4 py-2.5 text-slate-300">{hr.bloodGroup}</td>
-                    <td className="px-4 py-2.5 text-slate-300">
-                      {hr.quantity} unit{hr.quantity > 1 ? "s" : ""}
-                    </td>
-                    <td className="px-4 py-2.5 text-slate-300">{hr.distance}</td>
-                    <td className="px-4 py-2.5 text-slate-400">{hr.postedAgo}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Current hospitals */}
+        <div className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold text-stone-800">Partner hospitals ({hospitals.length})</h2>
+          <div className="space-y-2">
+            {hospitals.map((h) => (
+              <div
+                key={h.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-stone-200 bg-white p-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-stone-900">{h.name}</p>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-500">
+                    <MapPin className="h-3.5 w-3.5 shrink-0" /> {h.address}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-stone-500">
+                    <span className="flex items-center gap-1">
+                      <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" /> {h.rating} rating
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3.5 w-3.5" /> ~{h.waitTime}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 font-medium ${
+                        h.availableNow ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                      }`}
+                    >
+                      {h.availableNow ? "Available now" : "Fully booked"}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => onRemoveHospital(h.id)}
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-xs text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Remove
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       </div>
     </div>
   );
 }
-

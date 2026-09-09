@@ -11,7 +11,7 @@ import ProfileScreen from "./components/ProfileScreen";
 import EmergencyModeScreen from "./components/EmergencyModeScreen";
 import AdminDashboard from "./components/AdminDashboard";
 
-import { STRINGS, SEED_USERS, SEED_REQUESTS } from "./data/constants";
+import { STRINGS, SEED_USERS, SEED_REQUESTS, HOSPITALS } from "./data/constants";
 import { BG_PATTERN_URL } from "./utils/helpers";
 
 export default function App() {
@@ -28,6 +28,9 @@ export default function App() {
 
   // Blood requests (lifted so the admin dashboard can see them too)
   const [requests, setRequests] = useState(SEED_REQUESTS);
+
+  // Hospitals (lifted so admin-added hospitals show up in the user's Find Care directory)
+  const [hospitals, setHospitals] = useState(HOSPITALS);
 
   const currentUser = users.find((u) => u.id === authedUserId) || null;
   const registeredDonors = users
@@ -77,8 +80,12 @@ export default function App() {
     setRequests((rs) => [req, ...rs]);
   };
 
-  const handleRemoveRequest = (id) => {
-    setRequests((rs) => rs.filter((r) => r.id !== id));
+  const handleAddHospital = (hospital) => {
+    setHospitals((hs) => [hospital, ...hs]);
+  };
+
+  const handleRemoveHospital = (id) => {
+    setHospitals((hs) => hs.filter((h) => h.id !== id));
   };
 
   // ---- Not signed in: user auth or admin auth ----
@@ -99,7 +106,14 @@ export default function App() {
   // ---- Admin dashboard ----
   if (isAdmin) {
     return (
-      <AdminDashboard users={users} requests={requests} onRemoveRequest={handleRemoveRequest} onLogout={handleLogout} />
+      <AdminDashboard
+        users={users}
+        requests={requests}
+        hospitals={hospitals}
+        onAddHospital={handleAddHospital}
+        onRemoveHospital={handleRemoveHospital}
+        onLogout={handleLogout}
+      />
     );
   }
 
@@ -128,7 +142,7 @@ export default function App() {
             style={{ backgroundImage: BG_PATTERN_URL, backgroundRepeat: "repeat" }}
           >
             {tab === "triage" && <TriageScreen onTrigger={() => setEmergencyMode(true)} />}
-            {tab === "hospitals" && <HospitalDirectory />}
+            {tab === "hospitals" && <HospitalDirectory hospitals={hospitals} />}
             {tab === "blood" && (
               <BloodDonorScreen
                 currentUser={currentUser}
