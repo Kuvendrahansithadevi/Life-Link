@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Heart,
   Activity,
@@ -9,6 +9,7 @@ import {
   Building2,
   Plus,
   Trash2,
+  Pencil,
   MapPin,
   Clock,
   BadgeCheck,
@@ -34,36 +35,96 @@ const emptyHospitalForm = {
   address: "",
   phone: "",
   specialists: "",
+  lat: "",
+  lng: "",
+  total_beds: "0",
+  icu_beds: "0",
+  available_beds: "0",
   waitTime: "15 min",
+  rating: "4.5",
   availableNow: true,
 };
 
-export default function AdminDashboard({ users, requests, hospitals, onAddHospital, onRemoveHospital, onLogout }) {
+export default function AdminDashboard({ users, requests, onLogout }) {
   const donors = users.filter((u) => u.isDonor);
 
   const [hospitalForm, setHospitalForm] = useState(emptyHospitalForm);
+  const [hospitals, setHospitals] = useState([]);
+  const [editingId, setEditingId] = useState(null);
   const [added, setAdded] = useState(false);
+  const [error, setError] = useState("");
 
-  const submitHospital = () => {
-    if (!hospitalForm.name.trim() || !hospitalForm.address.trim() || !hospitalForm.phone.trim()) return;
+  const loadHospitals = async () => {
+    try {
+      const response = await fetch("/api/hospitals");
+      if (!response.ok) throw new Error("Could not load hospitals.");
+      setHospitals(await response.json());
+    } catch (err) {
+      setError(err.message || "Could not load hospitals.");
+    }
+  };
+
+  useEffect(() => {
+    loadHospitals();
+  }, []);
+
+  const submitHospital = async () => {
+    if (!hospitalForm.name.trim() || !hospitalForm.address.trim() || !hospitalForm.lat || !hospitalForm.lng) return;
     const specialistsList = hospitalForm.specialists
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    onAddHospital({
-      id: "h" + Date.now(),
+    const payload = {
       name: hospitalForm.name.trim(),
       address: hospitalForm.address.trim(),
       phone: hospitalForm.phone.trim(),
       specialists: specialistsList.length ? specialistsList : ["General Physician"],
-      availableNow: hospitalForm.availableNow,
-      distance: "New",
-      rating: 4.0,
-      waitTime: hospitalForm.waitTime.trim() || "15 min",
+      lat: Number(hospitalForm.lat),
+      lng: Number(hospitalForm.lng),
+      total_beds: Number(hospitalForm.total_beds),
+      icu_beds: Number(hospitalForm.icu_beds),
+      available_beds: Number(hospitalForm.available_beds),
+      available_now: hospitalForm.availableNow,
+      rating: Number(hospitalForm.rating),
+      wait_time: hospitalForm.waitTime.trim() || "15 min",
+    };
+
+    try {
+      const response = await fetch(editingId ? `/api/hospitals/${editingId}` : "/api/hospitals", {
+        method: editingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("Could not save hospital.");
+      await loadHospitals();
+      setHospitalForm(emptyHospitalForm);
+      setEditingId(null);
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2500);
+    } catch (err) {
+      setError(err.message || "Could not save hospital.");
+    }
+  };
+
+  const editHospital = (hospital) => {
+    setEditingId(hospital.id);
+    setHospitalForm({
+      ...emptyHospitalForm,
+      ...hospital,
+      specialists: (hospital.specialists || []).join(", "),
+      waitTime: hospital.wait_time || "15 min",
+      availableNow: hospital.available_now ?? true,
     });
-    setHospitalForm(emptyHospitalForm);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2500);
+  };
+
+  const deleteHospital = async (id) => {
+    try {
+      const response = await fetch(`/api/hospitals/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Could not delete hospital.");
+      setHospitals((current) => current.filter((hospital) => hospital.id !== id));
+    } catch (err) {
+      setError(err.message || "Could not delete hospital.");
+    }
   };
 
   return (
@@ -111,6 +172,7 @@ export default function AdminDashboard({ users, requests, hospitals, onAddHospit
           <p className="mb-4 text-xs text-stone-500">
             New hospitals appear immediately in users' "Find Care" directory, ready for appointment booking.
           </p>
+          {error && <p className="mb-3 rounded-md bg-red-50 p-2 text-xs text-red-700">{error}</p>}
           <div
             className="grid grid-cols-1 gap-3 sm:grid-cols-2"
             onKeyDown={(e) => {
@@ -136,6 +198,14 @@ export default function AdminDashboard({ users, requests, hospitals, onAddHospit
               />
             </div>
             <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Latitude</label>
+              <input type="number" step="any" value={hospitalForm.lat} onChange={(e) => setHospitalForm({ ...hospitalForm, lat: e.target.value })} placeholder="13.8285" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Longitude</label>
+              <input type="number" step="any" value={hospitalForm.lng} onChange={(e) => setHospitalForm({ ...hospitalForm, lng: e.target.value })} placeholder="77.4913" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-stone-600">Phone number</label>
               <input
                 value={hospitalForm.phone}
@@ -152,6 +222,22 @@ export default function AdminDashboard({ users, requests, hospitals, onAddHospit
                 placeholder="e.g. 15 min"
                 className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Rating</label>
+              <input type="number" min="0" max="5" step="0.1" value={hospitalForm.rating} onChange={(e) => setHospitalForm({ ...hospitalForm, rating: e.target.value })} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Total beds</label>
+              <input type="number" min="0" value={hospitalForm.total_beds} onChange={(e) => setHospitalForm({ ...hospitalForm, total_beds: e.target.value })} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">ICU beds</label>
+              <input type="number" min="0" value={hospitalForm.icu_beds} onChange={(e) => setHospitalForm({ ...hospitalForm, icu_beds: e.target.value })} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Available beds</label>
+              <input type="number" min="0" value={hospitalForm.available_beds} onChange={(e) => setHospitalForm({ ...hospitalForm, available_beds: e.target.value })} className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-xs font-medium text-stone-600">Specialists (comma separated)</label>
@@ -177,7 +263,7 @@ export default function AdminDashboard({ users, requests, hospitals, onAddHospit
             onClick={submitHospital}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-emerald-600 sm:w-auto sm:px-6"
           >
-            <Plus className="h-4 w-4" /> Add hospital
+            <Plus className="h-4 w-4" /> {editingId ? "Update hospital" : "Add hospital"}
           </button>
           {added && (
             <p className="mt-2 text-xs font-medium text-emerald-700">
@@ -205,23 +291,25 @@ export default function AdminDashboard({ users, requests, hospitals, onAddHospit
                       <BadgeCheck className="h-3.5 w-3.5 text-emerald-600" /> {h.rating} rating
                     </span>
                     <span className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" /> ~{h.waitTime}
+                      <Clock className="h-3.5 w-3.5" /> ~{h.wait_time || h.waitTime}
                     </span>
                     <span
                       className={`rounded-full px-2 py-0.5 font-medium ${
-                        h.availableNow ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                        (h.available_now ?? h.availableNow) ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
                       }`}
                     >
-                      {h.availableNow ? "Available now" : "Fully booked"}
+                      {(h.available_now ?? h.availableNow) ? "Available now" : "Fully booked"}
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => onRemoveHospital(h.id)}
-                  className="flex shrink-0 items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-xs text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Remove
-                </button>
+                <div className="flex shrink-0 gap-1">
+                  <button onClick={() => editHospital(h)} className="flex items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-xs text-stone-500 hover:bg-stone-50">
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </button>
+                  <button onClick={() => deleteHospital(h.id)} className="flex items-center gap-1 rounded-md border border-stone-200 px-2 py-1 text-xs text-stone-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600">
+                    <Trash2 className="h-3.5 w-3.5" /> Remove
+                  </button>
+                </div>
               </div>
             ))}
           </div>

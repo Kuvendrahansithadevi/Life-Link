@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config.db import init_db
+from routers.auth import router as auth_router
 from routers import triage, hospitals, donors, emergency
 
 app = FastAPI(
@@ -9,10 +10,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS setup for Vite React frontend
+# Explicit frontend origins ivvali:
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,6 +35,7 @@ async def startup_event():
 
 # Include All Routers
 app.include_router(triage.router)
+app.include_router(auth_router)
 app.include_router(hospitals.router)
 app.include_router(donors.router)
 app.include_router(emergency.router)

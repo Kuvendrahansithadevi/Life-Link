@@ -1,156 +1,301 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
 import {
   Mic,
-  Square,
+  MicOff,
   Send,
+  AlertTriangle,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  ShieldAlert,
+  Sparkles,
   Stethoscope,
-  Siren,
+  Image as ImageIcon,
+  X,
+  MapPin,
+  Calendar,
 } from "lucide-react";
-import { VOICE_SAMPLE } from "../data/constants";
-import { runTriage, urgencyStyles } from "../utils/helpers";
 
-export default function TriageScreen({ onTrigger }) {
-  const [text, setText] = useState("");
-  const [listening, setListening] = useState(false);
-  const [result, setResult] = useState(null);
+export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBooking }) {
+  const [input, setInput] = useState("");
+  const [language, setLanguage] = useState("en");
   const [loading, setLoading] = useState(false);
-  const timerRef = useRef(null);
+  const [isListening, setIsListening] = useState(false);
+  const [result, setResult] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
 
-  useEffect(() => () => clearTimeout(timerRef.current), []);
+  // Real Web Speech API
+  const toggleListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition is not supported in this browser. Please use Google Chrome or Edge.");
+      return;
+    }
 
-  const startVoice = () => {
-    if (listening) return;
-    setListening(true);
-    timerRef.current = setTimeout(() => {
-      setText((prev) => (prev ? prev + " " + VOICE_SAMPLE : VOICE_SAMPLE));
-      setListening(false);
-    }, 1800);
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = language === "te" ? "te-IN" : language === "hi" ? "hi-IN" : "en-IN";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (e) => {
+      const transcript = e.results[0][0].transcript;
+      setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognition.start();
   };
 
-  const stopVoice = () => {
-    clearTimeout(timerRef.current);
-    setListening(false);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
   };
 
-  const submit = () => {
-    if (!text.trim()) return;
+  const clearImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleAnalyze = async () => {
+    if (!input.trim() && !selectedImage) return;
+
     setLoading(true);
     setResult(null);
-    setTimeout(() => {
-      setResult(runTriage(text));
+
+    const formData = new FormData();
+    formData.append("text", input);
+    formData.append("language", language);
+    if (selectedImage) formData.append("image", selectedImage);
+
+    // Get live coordinates if allowed
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => sendRequest(formData, pos.coords.latitude, pos.coords.longitude),
+        () => sendRequest(formData, 16.9891, 82.2475)
+      );
+    } else {
+      sendRequest(formData, 16.9891, 82.2475);
+    }
+  };
+
+  const sendRequest = async (formData, lat, lng) => {
+    formData.append("lat", lat);
+    formData.append("lng", lng);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/triage/analyze", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Failed to process triage analysis.");
+      const data = await response.json();
+      setResult(data);
+
+      if (data.triggerEmergency && onTriggerEmergency) {
+        onTriggerEmergency();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error reaching triage server. Please verify backend is running on port 8000.");
+    } finally {
       setLoading(false);
-    }, 1100);
+    }
   };
-
-  const reset = () => {
-    setText("");
-    setResult(null);
-  };
-
-  const styles = result ? urgencyStyles[result.urgency] : null;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-stone-900">Describe what you're feeling</h1>
-        <p className="mt-1 text-sm text-stone-600">
-          Type or speak your symptoms in your own words. Our assistant will estimate urgency and point you to the
-          right kind of care.
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="text-center">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+          <Sparkles className="h-3.5 w-3.5" /> AI Medical Triage
+        </span>
+        <h1 className="mt-3 text-2xl font-bold text-stone-900">Explain your symptoms</h1>
+        <p className="mt-1 text-sm text-stone-500">
+          Describe what you are experiencing or upload an image for immediate clinical triage and home remedies.
         </p>
       </div>
 
-      {!result && !loading && (
-        <div className="rounded-xl border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-900/5">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={5}
-            placeholder="e.g. I've had a dull headache since this morning and feel tired..."
-            className="w-full resize-none rounded-lg border border-stone-200 p-3 text-sm text-stone-800 outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
-          />
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-6 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+          <span className="text-xs font-medium text-stone-500">Select language</span>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="rounded-md border border-stone-300 px-2 py-1 text-xs outline-none focus:border-emerald-600"
+          >
+            <option value="en">English</option>
+            <option value="te">తెలుగు (Telugu)</option>
+            <option value="hi">हिन्दी (Hindi)</option>
+          </select>
+        </div>
+
+        <textarea
+          rows={4}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="e.g. I have severe pain in my heart radiating to my left arm, sweating, and difficulty breathing..."
+          className="mt-3 w-full resize-none rounded-xl border border-stone-200 p-3 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+        />
+
+        {/* Image Preview Thumbnail */}
+        {imagePreview && (
+          <div className="relative mt-2 inline-block">
+            <img src={imagePreview} alt="Selected" className="h-20 w-20 rounded-lg object-cover border border-stone-200" />
             <button
-              onClick={listening ? stopVoice : startVoice}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                listening
-                  ? "border-red-300 bg-red-50 text-red-700"
-                  : "border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+              onClick={clearImage}
+              className="absolute -right-1.5 -top-1.5 rounded-full bg-stone-800 p-0.5 text-white hover:bg-red-600"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                isListening ? "bg-red-600 text-white animate-pulse" : "bg-stone-100 text-stone-700 hover:bg-stone-200"
               }`}
             >
-              {listening ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              {listening ? "Listening… tap to stop" : "Speak your symptoms"}
+              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              {isListening ? "Listening..." : "Speak"}
             </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              accept="image/*"
+              className="hidden"
+            />
             <button
-              onClick={submit}
-              disabled={!text.trim()}
-              className="flex items-center gap-2 rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-emerald-900/20 hover:from-emerald-500 hover:to-emerald-600 disabled:cursor-not-allowed disabled:from-stone-300 disabled:to-stone-300"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 rounded-lg bg-stone-100 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-200"
             >
-              <Send className="h-4 w-4" />
-              Get guidance
+              <ImageIcon className="h-4 w-4 text-stone-600" />
+              {selectedImage ? "Change photo" : "Add photo"}
             </button>
           </div>
-          {listening && (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-600" /> Simulated voice capture in
-              progress…
-            </p>
+
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={loading || (!input.trim() && !selectedImage)}
+            className="flex items-center gap-1.5 rounded-lg bg-emerald-700 px-4 py-2 text-xs font-semibold text-white shadow hover:bg-emerald-600 disabled:bg-stone-300"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Get guidance
+          </button>
+        </div>
+      </div>
+
+      {/* Triage Results Display */}
+      {result && (
+        <div className="mt-6 space-y-4">
+          {/* Urgency Badge Header */}
+          <div
+            className={`flex items-center justify-between rounded-xl p-4 border ${
+              result.urgency === "High"
+                ? "bg-red-50 border-red-200 text-red-800"
+                : result.urgency === "Medium"
+                ? "bg-amber-50 border-amber-200 text-amber-800"
+                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              {result.urgency === "High" ? (
+                <ShieldAlert className="h-6 w-6 text-red-600" />
+              ) : result.urgency === "Medium" ? (
+                <AlertTriangle className="h-6 w-6 text-amber-600" />
+              ) : (
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              )}
+              <div>
+                <h3 className="font-bold text-sm">Urgency Level: {result.urgency}</h3>
+                <p className="text-xs opacity-90">{result.guidance}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Home Remedies & First-Aid Section */}
+          {result.remedies && result.remedies.length > 0 && (
+            <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+              <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-800">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Immediate Care & Home Remedies
+              </h4>
+              <ul className="mt-3 space-y-2">
+                {result.remedies.map((remedy, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-xs text-stone-700">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-600 shrink-0" />
+                    <span>{remedy}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-        </div>
-      )}
 
-      {loading && (
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-emerald-100 bg-white py-14">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-          <p className="text-sm text-stone-500">Analyzing what you described…</p>
-        </div>
-      )}
+          {/* Precautions Section */}
+          {result.precautions && result.precautions.length > 0 && (
+            <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+              <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-800">
+                <AlertCircle className="h-4 w-4 text-red-600" /> Critical Precautions (What to Avoid)
+              </h4>
+              <ul className="mt-3 space-y-2">
+                {result.precautions.map((prec, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-xs text-stone-700">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-red-600 shrink-0" />
+                    <span>{prec}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-      {result && !loading && (
-        <div>
-          <div className={`rounded-xl border-l-4 ${styles.border} ${styles.bg} p-5 shadow-sm`}>
-            <div className="flex items-center gap-2">
-              <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} />
-              <span className={`text-sm font-semibold uppercase tracking-wide ${styles.text}`}>
-                {result.urgency} urgency
+          {/* Recommended Specialist & Closest Care */}
+          <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-stone-700">
+                <Stethoscope className="h-4 w-4 text-emerald-700" /> Recommended Specialist: {result.specialist}
               </span>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-stone-800">{result.guidance}</p>
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-white/70 px-3 py-2">
-              <Stethoscope className="h-4 w-4 shrink-0 text-emerald-700" />
-              <span className="text-sm text-stone-800">
-                Recommended: <span className="font-medium">{result.specialist}</span>
-              </span>
+
+            <div className="mt-3 space-y-3">
+              {result.suggested_hospitals?.map((h) => (
+                <div key={h.id} className="flex items-center justify-between rounded-lg border border-stone-100 bg-stone-50 p-3">
+                  <div>
+                    <h5 className="text-sm font-semibold text-stone-900">{h.name}</h5>
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-500">
+                      <MapPin className="h-3 w-3" /> {h.address} · {h.distance}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onSelectHospitalForBooking && onSelectHospitalForBooking(h)}
+                    className="flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-600"
+                  >
+                    <Calendar className="h-3.5 w-3.5" /> Book
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
-
-          {result.urgency === "High" && (
-            <button
-              onClick={onTrigger}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3 text-sm font-semibold text-white shadow-md shadow-red-900/30 ring-1 ring-red-400/40 hover:bg-red-500"
-            >
-              <Siren className="h-4 w-4" />
-              These sound serious — switch to Emergency Mode
-            </button>
-          )}
-
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={reset}
-              className="flex-1 rounded-lg border border-emerald-200 py-2.5 text-sm font-medium text-emerald-800 hover:bg-emerald-50"
-            >
-              Describe something else
-            </button>
-          </div>
-
-          <p className="mt-6 rounded-lg bg-stone-100 p-3 text-xs leading-relaxed text-stone-500">
-            <strong className="text-stone-700">Medical disclaimer:</strong> LIFE LINK's symptom check is a triage
-            assistant, not a definitive medical diagnosis. It does not replace evaluation by a licensed clinician.
-            If you believe you are having a medical emergency, call 108 or go to the nearest emergency room
-            immediately.
-          </p>
         </div>
       )}
     </div>
   );
 }
-

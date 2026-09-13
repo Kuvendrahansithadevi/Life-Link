@@ -11,8 +11,17 @@ import ProfileScreen from "./components/ProfileScreen";
 import EmergencyModeScreen from "./components/EmergencyModeScreen";
 import AdminDashboard from "./components/AdminDashboard";
 
-import { STRINGS, SEED_USERS, SEED_REQUESTS, HOSPITALS } from "./data/constants";
+import { STRINGS, SEED_USERS, SEED_REQUESTS } from "./data/constants";
 import { BG_PATTERN_URL } from "./utils/helpers";
+
+function readStoredUser() {
+  try {
+    const savedUser = localStorage.getItem("user");
+    return savedUser ? JSON.parse(savedUser) : null;
+  } catch (err) {
+    return null;
+  }
+}
 
 export default function App() {
   const [language, setLanguage] = useState("en");
@@ -21,18 +30,22 @@ export default function App() {
   const t = STRINGS[language];
 
   // Auth state
-  const [users, setUsers] = useState(SEED_USERS);
-  const [authedUserId, setAuthedUserId] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => readStoredUser());
+  const [users, setUsers] = useState(() => {
+    const savedUser = readStoredUser();
+    if (!savedUser || SEED_USERS.some((user) => user.id === savedUser.id)) return SEED_USERS;
+    return [...SEED_USERS, savedUser];
+  });
+  const [authedUserId, setAuthedUserId] = useState(() => readStoredUser()?.id || null);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    const savedUser = readStoredUser();
+    return savedUser?.role === "admin" || savedUser?.role === "hospital";
+  });
   const [authScreen, setAuthScreen] = useState("login"); // login/signup handled inside AuthScreen, this only toggles admin login
 
   // Blood requests (lifted so the admin dashboard can see them too)
   const [requests, setRequests] = useState(SEED_REQUESTS);
 
-  // Hospitals (lifted so admin-added hospitals show up in the user's Find Care directory)
-  const [hospitals, setHospitals] = useState(HOSPITALS);
-
-  const currentUser = users.find((u) => u.id === authedUserId) || null;
   const registeredDonors = users
     .filter((u) => u.isDonor)
     .map((u) => ({
@@ -45,22 +58,41 @@ export default function App() {
       lastDonated: "Registered via LIFE LINK",
     }));
 
-  const handleLogin = (userId) => {
-    setAuthedUserId(userId);
+  const handleLogin = (user) => {
+    localStorage.setItem("user", JSON.stringify(user));
+    setUsers((existingUsers) => {
+      const existingUser = existingUsers.find((candidate) => candidate.id === user.id);
+      return existingUser
+        ? existingUsers.map((candidate) => (candidate.id === user.id ? { ...candidate, ...user } : candidate))
+        : [...existingUsers, user];
+    });
+    setCurrentUser(user);
+    setAuthedUserId(user.id);
+    setIsAdmin(false);
     setTab("triage");
   };
 
   const handleSignup = (newUser) => {
+    localStorage.setItem("user", JSON.stringify(newUser));
     setUsers((us) => [...us, newUser]);
+    setCurrentUser(newUser);
     setAuthedUserId(newUser.id);
+    setIsAdmin(false);
     setTab("triage");
   };
 
-  const handleAdminLogin = () => {
+  const handleAdminLogin = (user) => {
+    if (user) {
+      localStorage.setItem("user", JSON.stringify(user));
+      setCurrentUser(user);
+    }
     setIsAdmin(true);
   };
 
   const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    setCurrentUser(null);
     setAuthedUserId(null);
     setIsAdmin(false);
     setAuthScreen("login");
@@ -70,22 +102,24 @@ export default function App() {
 
   const handleUpdateUser = (fields) => {
     setUsers((us) => us.map((u) => (u.id === authedUserId ? { ...u, ...fields } : u)));
+    setCurrentUser((user) => {
+      const updatedUser = user ? { ...user, ...fields } : user;
+      if (updatedUser) localStorage.setItem("user", JSON.stringify(updatedUser));
+      return updatedUser;
+    });
   };
 
   const handleBecomeDonor = (donorFields) => {
     setUsers((us) => us.map((u) => (u.id === authedUserId ? { ...u, ...donorFields, isDonor: true } : u)));
+    setCurrentUser((user) => {
+      const updatedUser = user ? { ...user, ...donorFields, isDonor: true } : user;
+      if (updatedUser) localStorage.setItem("user", JSON.stringify(updatedUser));
+      return updatedUser;
+    });
   };
 
   const handleAddRequest = (req) => {
     setRequests((rs) => [req, ...rs]);
-  };
-
-  const handleAddHospital = (hospital) => {
-    setHospitals((hs) => [hospital, ...hs]);
-  };
-
-  const handleRemoveHospital = (id) => {
-    setHospitals((hs) => hs.filter((h) => h.id !== id));
   };
 
   // ---- Not signed in: user auth or admin auth ----
@@ -109,9 +143,6 @@ export default function App() {
       <AdminDashboard
         users={users}
         requests={requests}
-        hospitals={hospitals}
-        onAddHospital={handleAddHospital}
-        onRemoveHospital={handleRemoveHospital}
         onLogout={handleLogout}
       />
     );
@@ -141,8 +172,14 @@ export default function App() {
             className="relative flex-1 bg-stone-50"
             style={{ backgroundImage: BG_PATTERN_URL, backgroundRepeat: "repeat" }}
           >
-            {tab === "triage" && <TriageScreen onTrigger={() => setEmergencyMode(true)} />}
-            {tab === "hospitals" && <HospitalDirectory hospitals={hospitals} />}
+            {tab === "triage" && (
+              <TriageScreen
+                onTrigger={() => setEmergencyMode(true)}
+                language={language}
+                currentUser={currentUser}
+              />
+            )}
+            {tab === "hospitals" && <HospitalDirectory currentUser={currentUser} />}
             {tab === "blood" && (
               <BloodDonorScreen
                 currentUser={currentUser}

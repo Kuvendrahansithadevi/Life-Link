@@ -10,7 +10,11 @@ DB_NAME = os.getenv("DB_NAME", "lifelink_db")
 client = AsyncIOMotorClient(MONGO_URI)
 db = client[DB_NAME]
 
+
+def get_db():
+    return db
+
 async def init_db():
-    # Blood donors & hospitals geo query fast ga run avvadaniki 2dsphere indexing
+    await db.command("ping")
     await db.donors.create_index([("coordinates", "2dsphere")])
     await db.hospitals.create_index([("coordinates", "2dsphere")])

@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 pydantic
+email-validator
 python-dotenv
 google-genai
 motor

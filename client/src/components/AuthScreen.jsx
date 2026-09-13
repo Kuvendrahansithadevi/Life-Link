@@ -10,55 +10,173 @@ import {
   LogIn,
   UserPlus,
   ShieldCheck,
+  Loader2,
+  MapPin,
 } from "lucide-react";
 import { BG_PATTERN_URL } from "../utils/helpers";
 
-export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
+export default function AuthScreen({ onLogin, onSignup, onGoToAdmin }) {
   const [mode, setMode] = useState("login"); // login | signup
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
-  const [signupForm, setSignupForm] = useState({ username: "", email: "", password: "", address: "" });
+  const [signupForm, setSignupForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    address: "",
+    lat: null,
+    lng: null,
+  });
 
   const switchMode = (m) => {
     setMode(m);
     setError("");
   };
 
-  const submitLogin = () => {
-    const match = users.find(
-      (u) => u.username.toLowerCase() === loginForm.username.trim().toLowerCase() && u.password === loginForm.password
-    );
-    if (!match) {
-      setError("We couldn't find an account with that username and password.");
+  const useCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Location services are not available in this browser.");
       return;
     }
-    onLogin(match.id);
+
+    setLocationLoading(true);
+    setError("");
+
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const { latitude, longitude } = coords;
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+            { headers: { Accept: "application/json" } },
+          );
+          const data = await response.json();
+
+          if (!response.ok || !data.display_name) {
+            throw new Error("We couldn't determine a readable address for this location.");
+          }
+
+          setSignupForm((current) => ({
+            ...current,
+            address: data.display_name,
+            lat: latitude,
+            lng: longitude,
+          }));
+        } catch (err) {
+          setError(err.message || "Unable to fetch your current address.");
+        } finally {
+          setLocationLoading(false);
+        }
+      },
+      () => {
+        setLocationLoading(false);
+        setError("Unable to access your current location. Please allow location access or enter your address manually.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 },
+    );
   };
 
-  const submitSignup = () => {
-    const taken = users.some((u) => u.username.toLowerCase() === signupForm.username.trim().toLowerCase());
-    if (taken) {
-      setError("That username is already registered. Try logging in instead.");
+  // 1. Submit Login to FastAPI Backend
+  const submitLogin = async () => {
+    if (!loginForm.username.trim() || !loginForm.password) {
+      setError("Please provide both username and password.");
       return;
     }
-    if (!signupForm.username.trim() || !signupForm.email.trim() || !signupForm.password || !signupForm.address.trim()) {
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: loginForm.username.trim(), // Supports username or email
+          password: loginForm.password,
+          role: "user",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "We couldn't find an account with those credentials.");
+      }
+
+      // Save token and pass logged in user object/ID
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      if (onLogin) {
+        onLogin(data.user);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to log in. Please ensure the backend server is running.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Submit Signup to FastAPI Backend & MongoDB
+  const submitSignup = async () => {
+    if (
+      !signupForm.username.trim() ||
+      !signupForm.email.trim() ||
+      !signupForm.password ||
+      !signupForm.address.trim()
+    ) {
       setError("Please fill in every field to create your account.");
       return;
     }
-    onSignup({
-      id: "u" + Date.now(),
-      username: signupForm.username.trim(),
-      email: signupForm.email.trim(),
-      password: signupForm.password,
-      address: signupForm.address.trim(),
-      phone: "",
-      bloodGroup: "O+",
-      profileImage: null,
-      isDonor: false,
-      joined: "Just now",
-    });
+
+    if (signupForm.password.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupForm.email.trim())) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: signupForm.username.trim(),
+          email: signupForm.email.trim(),
+          password: signupForm.password,
+          address: signupForm.address.trim(),
+          lat: signupForm.lat,
+          lng: signupForm.lng,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Signup failed. Try a different username or email.");
+      }
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      if (onSignup) {
+        onSignup(data.user);
+      }
+    } catch (err) {
+      setError(err.message || "Failed to create account. Make sure backend is running.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,7 +198,9 @@ export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
             <button
               onClick={() => switchMode("login")}
               className={`flex-1 py-3 text-sm font-semibold ${
-                mode === "login" ? "border-b-2 border-emerald-700 text-emerald-800" : "text-stone-400 hover:text-stone-600"
+                mode === "login"
+                  ? "border-b-2 border-emerald-700 text-emerald-800"
+                  : "text-stone-400 hover:text-stone-600"
               }`}
             >
               Log in
@@ -88,7 +208,9 @@ export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
             <button
               onClick={() => switchMode("signup")}
               className={`flex-1 py-3 text-sm font-semibold ${
-                mode === "signup" ? "border-b-2 border-emerald-700 text-emerald-800" : "text-stone-400 hover:text-stone-600"
+                mode === "signup"
+                  ? "border-b-2 border-emerald-700 text-emerald-800"
+                  : "text-stone-400 hover:text-stone-600"
               }`}
             >
               Sign up
@@ -104,14 +226,14 @@ export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
                 }}
               >
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-stone-600">Username</label>
+                  <label className="mb-1 block text-xs font-medium text-stone-600">Username or Email</label>
                   <div className="relative">
                     <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                     <input
                       value={loginForm.username}
                       onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                       className="w-full rounded-lg border border-stone-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
-                      placeholder="e.g. asha.rao"
+                      placeholder="e.g. asha.rao or asha@example.com"
                     />
                   </div>
                 </div>
@@ -135,18 +257,18 @@ export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
                     </button>
                   </div>
                 </div>
+
                 {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+
                 <button
                   type="button"
                   onClick={submitLogin}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-emerald-600"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-emerald-600 disabled:opacity-70"
                 >
-                  <LogIn className="h-4 w-4" /> Log in
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                  Log in
                 </button>
-                <p className="text-center text-xs text-stone-500">
-                  Demo account — username <span className="font-mono font-medium text-stone-700">asha.rao</span>, password{" "}
-                  <span className="font-mono font-medium text-stone-700">password123</span>
-                </p>
               </div>
             ) : (
               <div
@@ -202,23 +324,39 @@ export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-stone-600">Address</label>
-                  <div className="relative">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
                     <Home className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                     <input
                       value={signupForm.address}
-                      onChange={(e) => setSignupForm({ ...signupForm, address: e.target.value })}
+                      onChange={(e) => setSignupForm({ ...signupForm, address: e.target.value, lat: null, lng: null })}
                       className="w-full rounded-lg border border-stone-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                       placeholder="House / street, area, city"
                     />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={useCurrentLocation}
+                      disabled={locationLoading || loading}
+                      title="Use current location"
+                      aria-label="Use current location"
+                      className="flex shrink-0 items-center justify-center rounded-lg border border-stone-300 px-3 text-emerald-700 hover:border-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {locationLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
+
                 {error && <p className="text-xs font-medium text-red-600">{error}</p>}
+
                 <button
                   type="button"
                   onClick={submitSignup}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-emerald-600"
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-b from-emerald-600 to-emerald-700 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-emerald-600 disabled:opacity-70"
                 >
-                  <UserPlus className="h-4 w-4" /> Create account
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                  Create account
                 </button>
               </div>
             )}
@@ -227,7 +365,7 @@ export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
 
         <button
           onClick={onGoToAdmin}
-          className="mt-5 flex w-full items-center justify-center gap-1.5 text-xs font-medium text-stone-500 hover:text-emerald-800"
+          className="mt-5 flex w-full items-center justify-center gap-1.5 text-xs font-medium text-stone-500 hover:text-emerald-800 transition-colors"
         >
           <ShieldCheck className="h-3.5 w-3.5" /> Hospital / administrator login
         </button>
@@ -235,4 +373,3 @@ export default function AuthScreen({ users, onLogin, onSignup, onGoToAdmin }) {
     </div>
   );
 }
-
