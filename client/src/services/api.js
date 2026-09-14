@@ -61,6 +61,64 @@ export async function broadcastBloodRequestAPI(requestData) {
   return res.json();
 }
 
+export async function getBloodRequestsAPI() {
+  const res = await fetch(`${API_BASE_URL}/donors/requests`);
+  if (!res.ok) throw new Error("Failed to load blood requests");
+  return res.json();
+}
+
+export async function createBloodRequestAPI(requestData) {
+  const res = await fetch(`${API_BASE_URL}/donors/requests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(requestData),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to broadcast blood request");
+  }
+  return res.json();
+}
+
+export async function getDonorsAPI(bloodGroup = "") {
+  const query = bloodGroup ? `?bloodGroup=${encodeURIComponent(bloodGroup)}` : "";
+  const res = await fetch(`${API_BASE_URL}/donors${query}`);
+  if (!res.ok) throw new Error("Failed to load donors");
+  return res.json();
+}
+
+export async function registerUserAsDonorAPI(donorData) {
+  const res = await fetch(`${API_BASE_URL}/donors/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(donorData),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to register donor");
+  }
+  return res.json();
+}
+
+export async function updateDonorStatusAPI(statusData) {
+  const res = await fetch(`${API_BASE_URL}/donors/toggle-status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(statusData),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to update donor status");
+  }
+  return res.json();
+}
+
+export async function getHospitalBloodRequestsAPI() {
+  const res = await fetch(`${API_BASE_URL}/donors/hospital-requests`);
+  if (!res.ok) throw new Error("Failed to load hospital requests");
+  return res.json();
+}
+
 // 7. Trigger Emergency Log
 // Requires the logged-in user's token — the backend derives the user_id
 // from this token and stores the alert against that user (see

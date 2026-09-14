@@ -43,6 +43,8 @@ const emptyHospitalForm = {
   waitTime: "15 min",
   rating: "4.5",
   availableNow: true,
+  staffEmail: "",
+  temporaryPassword: "",
 };
 
 export default function AdminDashboard({ users, requests, onLogout }) {
@@ -52,6 +54,7 @@ export default function AdminDashboard({ users, requests, onLogout }) {
   const [hospitals, setHospitals] = useState([]);
   const [editingId, setEditingId] = useState(null);
   const [added, setAdded] = useState(false);
+  const [credentials, setCredentials] = useState(null);
   const [error, setError] = useState("");
 
   const loadHospitals = async () => {
@@ -70,6 +73,10 @@ export default function AdminDashboard({ users, requests, onLogout }) {
 
   const submitHospital = async () => {
     if (!hospitalForm.name.trim() || !hospitalForm.address.trim() || !hospitalForm.lat || !hospitalForm.lng) return;
+    if (!editingId && (!hospitalForm.staffEmail.trim() || !hospitalForm.temporaryPassword)) {
+      setError("Staff email and default password are required when adding a hospital.");
+      return;
+    }
     const specialistsList = hospitalForm.specialists
       .split(",")
       .map((s) => s.trim())
@@ -87,6 +94,10 @@ export default function AdminDashboard({ users, requests, onLogout }) {
       available_now: hospitalForm.availableNow,
       rating: Number(hospitalForm.rating),
       wait_time: hospitalForm.waitTime.trim() || "15 min",
+      ...(editingId ? {} : {
+        staffEmail: hospitalForm.staffEmail.trim(),
+        temporaryPassword: hospitalForm.temporaryPassword,
+      }),
     };
 
     try {
@@ -96,9 +107,11 @@ export default function AdminDashboard({ users, requests, onLogout }) {
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Could not save hospital.");
+      const savedHospital = await response.json();
       await loadHospitals();
       setHospitalForm(emptyHospitalForm);
       setEditingId(null);
+      setCredentials(savedHospital.credentials || null);
       setAdded(true);
       setTimeout(() => setAdded(false), 2500);
     } catch (err) {
@@ -205,6 +218,16 @@ export default function AdminDashboard({ users, requests, onLogout }) {
               <label className="mb-1 block text-xs font-medium text-stone-600">Longitude</label>
               <input type="number" step="any" value={hospitalForm.lng} onChange={(e) => setHospitalForm({ ...hospitalForm, lng: e.target.value })} placeholder="77.4913" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
             </div>
+            {!editingId && <>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-stone-600">Hospital Contact / Staff Email</label>
+                <input type="email" value={hospitalForm.staffEmail} onChange={(e) => setHospitalForm({ ...hospitalForm, staffEmail: e.target.value })} placeholder="staff@hospital.com" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-stone-600">Default Staff Password</label>
+                <input type="text" value={hospitalForm.temporaryPassword} onChange={(e) => setHospitalForm({ ...hospitalForm, temporaryPassword: e.target.value })} placeholder="Temporary password" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+              </div>
+            </>}
             <div>
               <label className="mb-1 block text-xs font-medium text-stone-600">Phone number</label>
               <input
@@ -269,6 +292,13 @@ export default function AdminDashboard({ users, requests, onLogout }) {
             <p className="mt-2 text-xs font-medium text-emerald-700">
               Hospital added — it now appears in the user app's "Find Care" directory.
             </p>
+          )}
+          {credentials && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-semibold">Hospital staff login created</p>
+              <p className="mt-1">Email: <span className="font-mono">{credentials.email}</span></p>
+              <p>Password: <span className="font-mono">{credentials.temporaryPassword}</span></p>
+            </div>
           )}
         </div>
 

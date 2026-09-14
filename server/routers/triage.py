@@ -16,7 +16,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 @router.post("/analyze")
 async def analyze_symptom_endpoint(
-    text: str = Form(...),
+    text: Optional[str] = Form(""),
     language: str = Form("en"),
     lat: Optional[float] = Form(None),
     lng: Optional[float] = Form(None),

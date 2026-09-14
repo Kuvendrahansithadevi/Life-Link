@@ -88,6 +88,7 @@ async def login(req: LoginRequest):
                     "email": staff_user.get("email", ""),
                     "address": staff_user.get("address", ""),
                     "role": staff_user.get("role", req.role),
+                    "hospitalId": staff_user.get("hospitalId"),
                 },
             }
         raise HTTPException(status_code=401, detail="Invalid administrator credentials")

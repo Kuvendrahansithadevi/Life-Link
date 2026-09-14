@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config.db import init_db
 from routers.auth import router as auth_router
-from routers import triage, hospitals, donors, emergency
+from routers import triage, hospitals, donors, emergency, bookings
 
 app = FastAPI(
     title="LIFE LINK API",
@@ -39,6 +39,7 @@ app.include_router(auth_router)
 app.include_router(hospitals.router)
 app.include_router(donors.router)
 app.include_router(emergency.router)
+app.include_router(bookings.router)
 
 @app.get("/")
 def home():

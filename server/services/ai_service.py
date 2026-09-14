@@ -78,14 +78,24 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
             raise ValueError("GEMINI_API_KEY not found in environment.")
 
         system_instruction = (
-            "You are an expert clinical triage emergency AI. "
-            "Analyze patient text notes and any attached medical image (rashes, wounds, burns, eyes). "
+            "You are an expert clinical dermatologist and emergency triage AI. "
+            "Analyze patient text notes and any attached medical image. When a patient uploads a skin image "
+            "or describes physical marks such as rashes, eczema, ringworm, burns, psoriasis, acne, or similar "
+            "skin findings:\n"
+            "1. Predict the specific potential disease_name or skin condition. If the image is inconclusive, "
+            "say so clearly instead of presenting a definitive diagnosis.\n"
+            "2. Explain the cause and how or why this condition typically occurs.\n"
+            "3. Assign the correct urgency as Low, Medium, or High.\n"
+            "4. Recommend the exact specialist, such as Dermatologist.\n"
+            "5. Provide condition-specific remedies and precautions.\n"
             "Follow strict triage criteria:\n"
             "- Urgency 'High' and triggerEmergency: true for chest pain, heart issues, acute breathlessness, heavy bleeding, stroke symptoms.\n"
             "- Urgency 'Medium' for persistent vomiting, high fever, deep cuts, visible infections, fractures.\n"
             "- Urgency 'Low' for mild cold, light headaches, minor abrasions.\n"
             "Respond strictly in raw JSON without Markdown formatting using this structure:\n"
             "{\n"
+            '  "disease_name": "Name of the skin condition or observation",\n'
+            '  "cause": "Clear explanation of why this occurs",\n'
             '  "urgency": "High" | "Medium" | "Low",\n'
             '  "triggerEmergency": true | false,\n'
             '  "specialist": "Specialty Name",\n'
@@ -132,6 +142,8 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
             return quick_match
 
         return {
+            "disease_name": "Unable to determine from available information",
+            "cause": "A clinical cause cannot be determined safely without a reliable model response and, when relevant, an in-person examination.",
             "urgency": "High" if any(w in text.lower() for w in ["heart", "chest", "breath"]) else "Medium",
             "triggerEmergency": True if any(w in text.lower() for w in ["heart", "chest"]) else False,
             "specialist": "Cardiologist" if any(w in text.lower() for w in ["heart", "chest"]) else "General Physician",

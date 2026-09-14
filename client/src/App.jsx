@@ -10,6 +10,8 @@ import BloodDonorScreen from "./components/BloodDonorScreen";
 import ProfileScreen from "./components/ProfileScreen";
 import EmergencyModeScreen from "./components/EmergencyModeScreen";
 import AdminDashboard from "./components/AdminDashboard";
+import HospitalDashboardScreen from "./pages/HospitalDashboardScreen";
+import MyBookingsScreen from "./pages/MyBookingsScreen";
 
 import { STRINGS, SEED_USERS, SEED_REQUESTS } from "./data/constants";
 import { BG_PATTERN_URL } from "./utils/helpers";
@@ -39,7 +41,7 @@ export default function App() {
   const [authedUserId, setAuthedUserId] = useState(() => readStoredUser()?.id || null);
   const [isAdmin, setIsAdmin] = useState(() => {
     const savedUser = readStoredUser();
-    return savedUser?.role === "admin" || savedUser?.role === "hospital";
+    return savedUser?.role === "admin";
   });
   const [authScreen, setAuthScreen] = useState("login"); // login/signup handled inside AuthScreen, this only toggles admin login
 
@@ -86,7 +88,7 @@ export default function App() {
       localStorage.setItem("user", JSON.stringify(user));
       setCurrentUser(user);
     }
-    setIsAdmin(true);
+    setIsAdmin(user?.role === "admin");
   };
 
   const handleLogout = () => {
@@ -110,9 +112,10 @@ export default function App() {
   };
 
   const handleBecomeDonor = (donorFields) => {
-    setUsers((us) => us.map((u) => (u.id === authedUserId ? { ...u, ...donorFields, isDonor: true } : u)));
+    const isDonor = donorFields.isDonor ?? true;
+    setUsers((us) => us.map((u) => (u.id === authedUserId ? { ...u, ...donorFields, isDonor } : u)));
     setCurrentUser((user) => {
-      const updatedUser = user ? { ...user, ...donorFields, isDonor: true } : user;
+      const updatedUser = user ? { ...user, ...donorFields, isDonor } : user;
       if (updatedUser) localStorage.setItem("user", JSON.stringify(updatedUser));
       return updatedUser;
     });
@@ -148,6 +151,10 @@ export default function App() {
     );
   }
 
+  if (currentUser?.role === "hospital") {
+    return <HospitalDashboardScreen currentUser={currentUser} onLogout={handleLogout} />;
+  }
+
   // ---- Signed-in user app ----
   if (emergencyMode) {
     return <EmergencyModeScreen onExit={() => setEmergencyMode(false)} t={t} currentUser={currentUser} />;
@@ -180,6 +187,7 @@ export default function App() {
               />
             )}
             {tab === "hospitals" && <HospitalDirectory currentUser={currentUser} />}
+            {tab === "bookings" && <MyBookingsScreen currentUser={currentUser} />}
             {tab === "blood" && (
               <BloodDonorScreen
                 currentUser={currentUser}

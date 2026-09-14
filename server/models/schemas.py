@@ -22,6 +22,8 @@ class HospitalCreate(BaseModel):
     available_now: bool = Field(default=True, alias="availableNow")
     rating: Optional[float] = 4.5
     wait_time: Optional[str] = Field(default="15 min", alias="waitTime")
+    staff_email: str = Field(alias="staffEmail")
+    temporary_password: str = Field(alias="temporaryPassword", min_length=1)
 
 class HospitalUpdate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -38,6 +40,24 @@ class HospitalUpdate(BaseModel):
     available_now: Optional[bool] = Field(default=None, alias="availableNow")
     rating: Optional[float] = None
     wait_time: Optional[str] = Field(default=None, alias="waitTime")
+    doctor_status: Optional[str] = Field(default=None, alias="doctorStatus")
+    available_icu_beds: Optional[int] = Field(default=None, ge=0, alias="availableIcuBeds")
+
+class HospitalBedsUpdate(BaseModel):
+    available_beds: int = Field(ge=0, alias="availableBeds")
+    icu_beds: int = Field(ge=0, alias="icuBeds")
+    wait_time: str = Field(alias="waitTime")
+
+class SpecialistAvailabilityUpdate(BaseModel):
+    specialist: str
+    on_duty: bool = Field(alias="onDuty")
+
+class HospitalBloodRequestCreate(BaseModel):
+    blood_group: str = Field(alias="bloodGroup")
+    units: int = Field(ge=1, le=3)
+    notes: str = ""
+    requester_name: str = Field(alias="requesterName")
+    requester_phone: str = Field(default="", alias="requesterPhone")
 
 class AppointmentCreate(BaseModel):
     hospital_id: Optional[str] = None

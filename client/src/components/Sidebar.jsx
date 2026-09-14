@@ -9,6 +9,7 @@ import {
   User,
   Siren,
   LogOut,
+  CalendarDays,
 } from "lucide-react";
 import LanguageSelector from "./LanguageSelector";
 import { initialsOf } from "../utils/helpers";
@@ -74,6 +75,7 @@ export default function Sidebar({ tab, setTab, language, setLanguage, t, onEmerg
         <p className="px-3 pb-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-300/80">Modules</p>
         <SidebarButton icon={Stethoscope} label={t.navTriage} active={tab === "triage"} onClick={() => setTab("triage")} />
         <SidebarButton icon={Building2} label={t.navHospitals} active={tab === "hospitals"} onClick={() => setTab("hospitals")} />
+        <SidebarButton icon={CalendarDays} label="My Bookings" active={tab === "bookings"} onClick={() => setTab("bookings")} />
         <SidebarButton icon={Droplet} label={t.navBlood} active={tab === "blood"} onClick={() => setTab("blood")} />
         <SidebarButton icon={User} label={t.navProfile} active={tab === "profile"} onClick={() => setTab("profile")} />
       </nav>

@@ -11,12 +11,13 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-export function BookingModal({ hospital, onClose, initialSpecialist }) {
+export function BookingModal({ hospital, onClose, initialSpecialist, currentUser }) {
   const [form, setForm] = useState({
-    name: "",
-    phone: "",
+    name: currentUser?.username || "",
+    phone: currentUser?.phone || "",
     date: "",
     time: "",
+    notes: "",
     specialist: initialSpecialist && hospital.specialists?.includes(initialSpecialist)
       ? initialSpecialist
       : hospital.specialists?.[0] || "General Physician",
@@ -33,17 +34,18 @@ export function BookingModal({ hospital, onClose, initialSpecialist }) {
     setBookingError(null);
 
     try {
-      const response = await fetch("http://localhost:8000/api/hospitals/book", {
+      const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          hospital_id: hospital.id,
-          hospital_name: hospital.name,
-          patient_name: form.name.trim(),
-          phone: form.phone.trim(),
+          userId: currentUser?.id,
+          hospitalId: hospital.id,
+          hospitalName: hospital.name,
+          patientName: form.name.trim(),
           specialist: form.specialist,
-          date: form.date,
-          time: form.time,
+          appointmentDate: form.date,
+          timeSlot: form.time,
+          notes: form.notes.trim(),
         }),
       });
 
@@ -52,7 +54,7 @@ export function BookingModal({ hospital, onClose, initialSpecialist }) {
       }
 
       const data = await response.json();
-      setAppointmentId(data.booking_id || data.appointment_id || "LL-" + Math.floor(100000 + Math.random() * 900000));
+      setAppointmentId(data.id || "LL-" + Math.floor(100000 + Math.random() * 900000));
       setConfirmed(true);
     } catch (err) {
       console.error("Booking error:", err);
@@ -139,6 +141,16 @@ export function BookingModal({ hospital, onClose, initialSpecialist }) {
                   className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                 />
               </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">Notes (optional)</label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                placeholder="Anything the hospital should know"
+                rows={2}
+              />
             </div>
             <button
               type="button"
@@ -319,7 +331,7 @@ export default function HospitalDirectory({ currentUser }) {
         </div>
       )}
 
-      {selected && <BookingModal hospital={selected} onClose={() => setSelected(null)} />}
+      {selected && <BookingModal hospital={selected} currentUser={currentUser} onClose={() => setSelected(null)} />}
     </div>
   );
 }
