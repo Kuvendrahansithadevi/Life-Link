@@ -66,3 +66,18 @@ class EmergencyAlert(BaseModel):
     lat: float
     lng: float
     message: Optional[str] = "Emergency assistance needed"
+
+class EmergencyContactCreate(BaseModel):
+    # NOTE: user_id is intentionally NOT part of this schema.
+    # The authenticated user's id is derived server-side from the
+    # Authorization token (see routers/emergency.py -> get_current_user_id)
+    # and must never be trusted from the request body.
+    name: str
+    phone: str
+    relation: str
+
+
+class EmergencyContactUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    relation: Optional[str] = None
