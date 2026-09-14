@@ -62,12 +62,84 @@ export async function broadcastBloodRequestAPI(requestData) {
 }
 
 // 7. Trigger Emergency Log
+// Requires the logged-in user's token — the backend derives the user_id
+// from this token and stores the alert against that user (see
+// server/routers/emergency.py -> POST /api/emergency/alert).
 export async function triggerEmergencyAlertAPI(lat, lng, message) {
+  const token = localStorage.getItem("token");
   const res = await fetch(`${API_BASE_URL}/emergency/alert`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ lat, lng, message }),
   });
   if (!res.ok) throw new Error("Failed to log emergency");
+  return res.json();
+}
+
+// ---------------------------------------------------------------------
+// Emergency Contacts (per logged-in user, backed by MongoDB)
+// All calls below require a valid "Bearer token_<userId>" token, which
+// the backend uses to scope every read/write to the authenticated user.
+// The frontend never sends a user_id — the backend attaches it itself.
+// ---------------------------------------------------------------------
+
+function authHeaders() {
+  const token = localStorage.getItem("token");
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+// 8. Get the current user's emergency contacts
+export async function getEmergencyContactsAPI() {
+  const res = await fetch(`${API_BASE_URL}/emergency/contacts`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to load emergency contacts");
+  return res.json();
+}
+
+// 9. Add a new emergency contact for the current user
+export async function addEmergencyContactAPI({ name, phone, relation }) {
+  const res = await fetch(`${API_BASE_URL}/emergency/contacts`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ name, phone, relation }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to add emergency contact");
+  }
+  return res.json();
+}
+
+// 10. Update an existing emergency contact
+export async function updateEmergencyContactAPI(contactId, updates) {
+  const res = await fetch(`${API_BASE_URL}/emergency/contacts/${contactId}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to update emergency contact");
+  }
+  return res.json();
+}
+
+// 11. Delete an emergency contact
+export async function deleteEmergencyContactAPI(contactId) {
+  const res = await fetch(`${API_BASE_URL}/emergency/contacts/${contactId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to delete emergency contact");
+  }
   return res.json();
 }

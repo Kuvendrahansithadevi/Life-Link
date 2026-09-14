@@ -193,11 +193,9 @@ export const HOSPITAL_BLOOD_REQUESTS = [
   { id: "hr5", hospital: "Sunrise Diagnostic & Care Centre", location: "Gandhi Nagar, Hindupur", bloodGroup: "O+", quantity: 1, distance: "7.1 km", postedAgo: "5 hr ago", contact: "+91 8556 231234" },
 ];
 
-export const EMERGENCY_CONTACTS_SEED = [
-  { id: "c1", name: "Anitha (Spouse)", phone: "+91 98765 43210", status: "pending" },
-  { id: "c2", name: "Ramesh (Brother)", phone: "+91 98765 12345", status: "pending" },
-  { id: "c3", name: "Dr. Kavitha (Family Physician)", phone: "+91 98765 67890", status: "pending" },
-];
+// NOTE: Emergency contacts are no longer seeded/hardcoded here. They are
+// stored per-user in MongoDB and fetched via /api/emergency/contacts
+// (see client/src/services/api.js and server/routers/emergency.py).
 
 export const TRAUMA_CENTER = {
   name: "Government General Hospital — Trauma & Emergency Unit",

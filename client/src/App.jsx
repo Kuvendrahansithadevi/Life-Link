@@ -150,7 +150,7 @@ export default function App() {
 
   // ---- Signed-in user app ----
   if (emergencyMode) {
-    return <EmergencyModeScreen onExit={() => setEmergencyMode(false)} t={t} />;
+    return <EmergencyModeScreen onExit={() => setEmergencyMode(false)} t={t} currentUser={currentUser} />;
   }
 
   return (
