@@ -1,6 +1,6 @@
 // client/src/services/api.js
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 // 1. AI Triage API Call
 export async function analyzeSymptomsAPI(text, language = "en") {
@@ -154,20 +154,31 @@ function authHeaders() {
 
 // 8. Get the current user's emergency contacts
 export async function getEmergencyContactsAPI() {
-  const res = await fetch(`${API_BASE_URL}/emergency/contacts`, {
-    headers: authHeaders(),
-  });
-  if (!res.ok) throw new Error("Failed to load emergency contacts");
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/emergency/contacts`, { headers: authHeaders() });
+  } catch {
+    throw new Error("The emergency service is unavailable. Please check that the backend is running.");
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Failed to load emergency contacts");
+  }
   return res.json();
 }
 
 // 9. Add a new emergency contact for the current user
 export async function addEmergencyContactAPI({ name, phone, relation }) {
-  const res = await fetch(`${API_BASE_URL}/emergency/contacts`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify({ name, phone, relation }),
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE_URL}/emergency/contacts`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ name, phone, relation }),
+    });
+  } catch {
+    throw new Error("The emergency service is unavailable. Please check that the backend is running.");
+  }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.detail || "Failed to add emergency contact");

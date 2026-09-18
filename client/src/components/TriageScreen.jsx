@@ -28,6 +28,7 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [emergencyBookingState, setEmergencyBookingState] = useState("idle");
   const [emergencyBookingError, setEmergencyBookingError] = useState("");
+  const [error, setError] = useState("");
   const fileInputRef = useRef(null);
 
   // Real Web Speech API
@@ -78,6 +79,7 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
 
     setLoading(true);
     setResult(null);
+    setError("");
 
     const formData = new FormData();
     formData.append("text", input);
@@ -100,7 +102,7 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
     formData.append("lng", lng);
 
     try {
-      const response = await fetch("http://localhost:8000/api/triage/analyze", {
+      const response = await fetch("/api/triage/analyze", {
         method: "POST",
         body: formData,
       });
@@ -109,18 +111,19 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
       const data = await response.json();
       setResult(data);
 
-      if (data.urgency === "High" || data.triggerEmergency === true) {
+      if (data.triggerEmergency === true) {
         setShowEmergencyModal(true);
       }
     } catch (err) {
-      console.error(err);
-      alert("Error reaching triage server. Please verify backend is running on port 8000.");
+      console.error("Triage request failed:", err);
+      setError("We couldn't reach the triage service. Please check that the backend is running and try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const urgentHospital = result?.suggested_hospitals?.[0];
+  const emergencyDetected = result?.triggerEmergency === true;
 
   const bookUrgentHospital = async () => {
     if (!urgentHospital || !currentUser?.id) {
@@ -241,6 +244,12 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
             Get guidance
           </button>
         </div>
+        {loading && (
+          <p className="mt-3 flex items-center gap-2 text-xs font-medium text-emerald-800" role="status">
+            <Loader2 className="h-4 w-4 animate-spin" /> Analyzing your symptoms...
+          </p>
+        )}
+        {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{error}</p>}
       </div>
 
       {/* Triage Results Display */}
@@ -249,7 +258,7 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
           {/* Urgency Badge Header */}
           <div
             className={`flex items-center justify-between rounded-xl p-4 border ${
-              result.urgency === "High"
+              emergencyDetected || result.urgency === "High" || result.urgency === "Critical"
                 ? "bg-red-50 border-red-200 text-red-800"
                 : result.urgency === "Medium"
                 ? "bg-amber-50 border-amber-200 text-amber-800"
@@ -257,7 +266,7 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
             }`}
           >
             <div className="flex items-center gap-3">
-              {result.urgency === "High" ? (
+              {emergencyDetected || result.urgency === "High" || result.urgency === "Critical" ? (
                 <ShieldAlert className="h-6 w-6 text-red-600" />
               ) : result.urgency === "Medium" ? (
                 <AlertTriangle className="h-6 w-6 text-amber-600" />
@@ -358,13 +367,13 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
               <div className="flex items-center gap-3">
                 <ShieldAlert className="h-7 w-7 shrink-0" />
                 <div>
-                  <h2 id="critical-emergency-title" className="text-lg font-black tracking-wide">CRITICAL EMERGENCY DETECTED</h2>
+                  <h2 id="critical-emergency-title" className="text-lg font-black tracking-wide">EMERGENCY DETECTED</h2>
                   <p className="mt-1 text-xs font-semibold text-red-100">Seek immediate medical care. Do not wait for symptoms to improve.</p>
                 </div>
               </div>
             </div>
             <div className="space-y-4 p-5">
-              <p className="text-sm leading-6 text-stone-700">Your triage result was classified as high urgency. Call emergency services now if you are in immediate danger.</p>
+              <p className="text-sm leading-6 text-stone-700">Your symptoms may require immediate medical attention. Call emergency services now if you are in immediate danger.</p>
               <a href="tel:108" className="flex items-center justify-center gap-2 rounded-lg bg-red-700 px-4 py-3 text-base font-bold text-white shadow-lg shadow-red-900/20 hover:bg-red-600">
                 <Phone className="h-5 w-5" /> Call Ambulance (108)
               </a>
@@ -377,7 +386,7 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
               {emergencyBookingError && <p className="text-xs font-medium text-red-700">{emergencyBookingError}</p>}
               {urgentHospital && <p className="flex items-start gap-2 text-xs text-stone-500"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{urgentHospital.name} · {urgentHospital.address}</p>}
               <div className="flex flex-col gap-2 border-t border-stone-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <button onClick={() => onTriggerEmergency?.()} className="text-left text-xs font-semibold text-red-700 hover:text-red-600">Open full Emergency Mode</button>
+                <button onClick={() => onTriggerEmergency?.(result)} className="text-left text-xs font-semibold uppercase tracking-wide text-red-700 hover:text-red-600">Open full Emergency Mode</button>
                 <button onClick={() => setShowEmergencyModal(false)} className="rounded-md border border-stone-300 px-3 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">I understand, close alert</button>
               </div>
             </div>

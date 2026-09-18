@@ -29,6 +29,7 @@ export default function App() {
   const [language, setLanguage] = useState("en");
   const [tab, setTab] = useState("triage");
   const [emergencyMode, setEmergencyMode] = useState(false);
+  const [emergencyResult, setEmergencyResult] = useState(null);
   const t = STRINGS[language];
 
   // Auth state
@@ -99,7 +100,13 @@ export default function App() {
     setIsAdmin(false);
     setAuthScreen("login");
     setEmergencyMode(false);
+    setEmergencyResult(null);
     setTab("triage");
+  };
+
+  const openEmergencyMode = (result = null) => {
+    setEmergencyResult(result);
+    setEmergencyMode(true);
   };
 
   const handleUpdateUser = (fields) => {
@@ -157,7 +164,14 @@ export default function App() {
 
   // ---- Signed-in user app ----
   if (emergencyMode) {
-    return <EmergencyModeScreen onExit={() => setEmergencyMode(false)} t={t} currentUser={currentUser} />;
+    return (
+      <EmergencyModeScreen
+        onExit={() => setEmergencyMode(false)}
+        t={t}
+        currentUser={currentUser}
+        triageResult={emergencyResult}
+      />
+    );
   }
 
   return (
@@ -169,7 +183,7 @@ export default function App() {
           language={language}
           setLanguage={setLanguage}
           t={t}
-          onEmergency={() => setEmergencyMode(true)}
+          onEmergency={() => openEmergencyMode()}
           currentUser={currentUser}
           onLogout={handleLogout}
         />
@@ -181,7 +195,7 @@ export default function App() {
           >
             {tab === "triage" && (
               <TriageScreen
-                onTrigger={() => setEmergencyMode(true)}
+                onTriggerEmergency={openEmergencyMode}
                 language={language}
                 currentUser={currentUser}
               />
