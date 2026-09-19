@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { BG_PATTERN_URL } from "../utils/helpers";
 
-export default function AuthScreen({ onLogin, onSignup, onGoToAdmin }) {
-  const [mode, setMode] = useState("login"); // login | signup
+export default function AuthScreen({ onLogin, onSignup, onGoToAdmin, initialMode = "login" }) {
+  const [mode, setMode] = useState(initialMode); // login | signup
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

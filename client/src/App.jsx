@@ -12,6 +12,7 @@ import EmergencyModeScreen from "./components/EmergencyModeScreen";
 import AdminDashboard from "./components/AdminDashboard";
 import HospitalDashboardScreen from "./pages/HospitalDashboardScreen";
 import MyBookingsScreen from "./pages/MyBookingsScreen";
+import LandingPage from "./components/LandingPage";
 
 import { STRINGS, SEED_USERS, SEED_REQUESTS } from "./data/constants";
 import { BG_PATTERN_URL } from "./utils/helpers";
@@ -45,6 +46,7 @@ export default function App() {
     return savedUser?.role === "admin";
   });
   const [authScreen, setAuthScreen] = useState("login"); // login/signup handled inside AuthScreen, this only toggles admin login
+  const [showLanding, setShowLanding] = useState(() => !readStoredUser());
 
   // Blood requests (lifted so the admin dashboard can see them too)
   const [requests, setRequests] = useState(SEED_REQUESTS);
@@ -73,6 +75,7 @@ export default function App() {
     setAuthedUserId(user.id);
     setIsAdmin(false);
     setTab("triage");
+    setShowLanding(false);
   };
 
   const handleSignup = (newUser) => {
@@ -82,6 +85,7 @@ export default function App() {
     setAuthedUserId(newUser.id);
     setIsAdmin(false);
     setTab("triage");
+    setShowLanding(false);
   };
 
   const handleAdminLogin = (user) => {
@@ -99,6 +103,7 @@ export default function App() {
     setAuthedUserId(null);
     setIsAdmin(false);
     setAuthScreen("login");
+    setShowLanding(true);
     setEmergencyMode(false);
     setEmergencyResult(null);
     setTab("triage");
@@ -134,12 +139,27 @@ export default function App() {
 
   // ---- Not signed in: user auth or admin auth ----
   if (!currentUser && !isAdmin) {
+    if (showLanding) {
+      return (
+        <LandingPage
+          onLogin={() => {
+            setAuthScreen("login");
+            setShowLanding(false);
+          }}
+          onSignup={() => {
+            setAuthScreen("signup");
+            setShowLanding(false);
+          }}
+        />
+      );
+    }
     if (authScreen === "adminLogin") {
       return <AdminLoginScreen onLogin={handleAdminLogin} onBack={() => setAuthScreen("login")} />;
     }
     return (
       <AuthScreen
         users={users}
+        initialMode={authScreen}
         onLogin={handleLogin}
         onSignup={handleSignup}
         onGoToAdmin={() => setAuthScreen("adminLogin")}
