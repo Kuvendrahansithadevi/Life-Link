@@ -73,7 +73,7 @@ export default function AdminLoginScreen({ onLogin, onBack }) {
             </span>
           </span>
           <h1 className="mt-3 text-xl font-bold tracking-tight text-stone-900">LIFE LINK Portal</h1>
-          <p className="mt-1 text-sm text-stone-500">Hospital & Administrator Access</p>
+          <p className="mt-1 text-sm text-stone-500">Hospital, Doctor & Administrator Access</p>
         </div>
 
         <div
@@ -91,6 +91,7 @@ export default function AdminLoginScreen({ onLogin, onBack }) {
             >
               <option value="admin">System Administrator</option>
               <option value="hospital">Hospital Staff / Clinic</option>
+              <option value="doctor">Doctor Portal</option>
             </select>
           </div>
 
@@ -102,7 +103,7 @@ export default function AdminLoginScreen({ onLogin, onBack }) {
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
                 className="w-full rounded-lg border border-stone-300 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
-                placeholder={form.role === "admin" ? "admin@lifelink.com" : "hospital@lifelink.com"}
+                placeholder={form.role === "admin" ? "admin@lifelink.com" : form.role === "doctor" ? "doctor@lifelink.com" : "hospital@lifelink.com"}
               />
             </div>
           </div>
@@ -141,7 +142,7 @@ export default function AdminLoginScreen({ onLogin, onBack }) {
           </button>
 
           <p className="text-center text-xs text-stone-500">
-            Demo Credentials — Admin: <span className="font-mono text-stone-700">admin@lifelink.com / Admin@2026</span>
+            Demo Credentials — Doctor: <span className="font-mono text-stone-700">doctor@lifelink.com / Doctor@2026</span>
           </p>
         </div>
 

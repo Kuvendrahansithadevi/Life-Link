@@ -2,12 +2,14 @@ import os
 import json
 import re
 import traceback
+from pathlib import Path
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
 
 # Deterministic Clinical Rule Engine (Failsafe for critical red-flags)
 CRITICAL_KEYWORDS = [
@@ -71,7 +73,7 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
     if quick_match and not image_bytes:
         return quick_match
 
-    # 2. Call Gemini 3.6 Flash with multimodal capability.
+    # 2. Call Gemini Flash with multimodal capability.
     try:
         client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
         if not client:
@@ -112,7 +114,7 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
         contents.append(f"Patient reported symptoms: {text}. Target language: {language}")
 
         response = client.models.generate_content(
-            model="gemini-3.6-flash",
+            model=GEMINI_MODEL,
             contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
@@ -121,7 +123,9 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
             )
         )
 
-        cleaned_text = response.text.strip()
+        cleaned_text = (response.text or "").strip()
+        if not cleaned_text:
+            raise ValueError("Gemini returned an empty response.")
         cleaned_text = re.sub(r"^```json\s*", "", cleaned_text)
         cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
         result = json.loads(cleaned_text)
@@ -135,7 +139,7 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
         return result
 
     except Exception as e:
-        print(f"Gemini API request failed; using explicit safety fallback. Exception: {e}", flush=True)
+        print(f"Gemini API request failed; using explicit safety fallback. Exception: {e!r}", flush=True)
         print(traceback.format_exc(), flush=True)
         # Return fallback with actionable remedies rather than empty defaults
         if quick_match:

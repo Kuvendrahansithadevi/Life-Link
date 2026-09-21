@@ -12,6 +12,8 @@ import EmergencyModeScreen from "./components/EmergencyModeScreen";
 import AdminDashboard from "./components/AdminDashboard";
 import HospitalDashboardScreen from "./pages/HospitalDashboardScreen";
 import MyBookingsScreen from "./pages/MyBookingsScreen";
+import DoctorChatScreen from "./components/DoctorChatScreen";
+import DoctorDashboardScreen from "./pages/DoctorDashboardScreen";
 import LandingPage from "./components/LandingPage";
 
 import { STRINGS, SEED_USERS, SEED_REQUESTS } from "./data/constants";
@@ -182,6 +184,10 @@ export default function App() {
     return <HospitalDashboardScreen currentUser={currentUser} onLogout={handleLogout} />;
   }
 
+  if (currentUser?.role === "doctor") {
+    return <DoctorDashboardScreen currentUser={currentUser} onLogout={handleLogout} />;
+  }
+
   // ---- Signed-in user app ----
   if (emergencyMode) {
     return (
@@ -222,6 +228,7 @@ export default function App() {
             )}
             {tab === "hospitals" && <HospitalDirectory currentUser={currentUser} />}
             {tab === "bookings" && <MyBookingsScreen currentUser={currentUser} />}
+            {tab === "chat" && <DoctorChatScreen currentUser={currentUser} />}
             {tab === "blood" && (
               <BloodDonorScreen
                 currentUser={currentUser}

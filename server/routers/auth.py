@@ -39,6 +39,7 @@ async def signup(req: SignupRequest):
         "role": "user",
         "isDonor": False,
         "bloodGroup": "O+",
+        "credits": 50,
         "created_at": datetime.utcnow()
     }
     res = await db.users.insert_one(user_doc)
@@ -53,13 +54,29 @@ async def signup(req: SignupRequest):
             "lng": req.lng,
             "role": "user",
             "isDonor": False,
-            "bloodGroup": "O+"
+            "bloodGroup": "O+",
+            "credits": 50,
         }
     }
 
 @router.post("/login")
 async def login(req: LoginRequest):
     db = get_db()
+
+    if req.role == "doctor":
+        doctor = await db.doctors.find_one({"email": req.email, "password": req.password})
+        if not doctor:
+            raise HTTPException(status_code=401, detail="Invalid doctor credentials")
+        return {
+            "token": f"doctor_token_{str(doctor['_id'])}",
+            "user": {
+                "id": str(doctor["_id"]),
+                "username": doctor.get("name", "Doctor"),
+                "email": doctor.get("email", ""),
+                "role": "doctor",
+                "specialization": doctor.get("specialization", "General Physician"),
+            },
+        }
 
     # Hospital/Admin Demo bypass
     if req.role in ["hospital", "admin"]:
@@ -111,6 +128,7 @@ async def login(req: LoginRequest):
             "address": user.get("address", ""),
             "role": user.get("role", "user"),
             "isDonor": user.get("isDonor", False),
-            "bloodGroup": user.get("bloodGroup", "O+")
+            "bloodGroup": user.get("bloodGroup", "O+"),
+            "credits": user.get("credits", 50),
         }
     }

@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 export async function analyzeSymptomsAPI(text, language = "en") {
   const res = await fetch(`${API_BASE_URL}/triage/analyze`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(), // Change this to use authHeaders() instead of plain Content-Type
     body: JSON.stringify({ text, language }),
   });
   if (!res.ok) throw new Error("Failed to analyze symptoms");
@@ -144,7 +144,7 @@ export async function triggerEmergencyAlertAPI(lat, lng, message) {
 // The frontend never sends a user_id — the backend attaches it itself.
 // ---------------------------------------------------------------------
 
-function authHeaders() {
+export function authHeaders() {
   const token = localStorage.getItem("token");
   return {
     "Content-Type": "application/json",

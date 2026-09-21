@@ -7,7 +7,6 @@
 LIFE-LINK is an **AI-powered healthcare assistance platform** designed to connect users with intelligent symptom guidance, emergency assistance, nearby healthcare facilities, multilingual interaction, and community-based blood support through one connected experience.
 
 ---
-
 ## 🌐 Overview
 
 Healthcare situations can become confusing, especially when users need quick guidance or are unsure about what to do next.
@@ -20,7 +19,14 @@ From describing symptoms to finding nearby hospitals and accessing emergency-rel
 
 ---
 
-## ✨ Key Features
+## Credit-Based Doctor Chat
+
+Users receive 50 Health Credits at signup. Each message sent to a doctor costs 5 credits, and the active consultation updates automatically while the doctor replies from the separate Doctor Portal. Doctors receive 70% of the credits spent in their consultations.
+
+Demo doctor access: `doctor@lifelink.com` / `Doctor@2026`
+
+---
+
 
 ### 🤖 AI-Powered Symptom Triage
 
