@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, XCircle } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock3, Loader2, MapPin, Stethoscope, XCircle } from "lucide-react";
 
 const statusStyles = {
   Confirmed: "bg-emerald-50 text-emerald-700",
   Completed: "bg-stone-100 text-stone-600",
   Cancelled: "bg-red-50 text-red-700",
+  "Pending payment": "bg-amber-50 text-amber-700",
 };
 
 export default function MyBookingsScreen({ currentUser }) {

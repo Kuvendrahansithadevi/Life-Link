@@ -18,3 +18,4 @@ async def init_db():
     await db.command("ping")
     await db.donors.create_index([("coordinates", "2dsphere")])
     await db.hospitals.create_index([("coordinates", "2dsphere")])
+    await db.bookings.create_index("slotKey", unique=True, sparse=True)

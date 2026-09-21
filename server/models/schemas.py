@@ -16,6 +16,10 @@ class HospitalCreate(BaseModel):
     lat: float
     lng: float
     phone: str = ""
+    description: str = ""
+    conditions: List[str] = []
+    treatments: List[dict] = []
+    specialist_profiles: List[dict] = []
     total_beds: int = Field(default=0, ge=0, alias="totalBeds")
     icu_beds: int = Field(default=0, ge=0, alias="icuBeds")
     available_beds: int = Field(default=0, ge=0, alias="availableBeds")
@@ -31,6 +35,10 @@ class HospitalUpdate(BaseModel):
     name: Optional[str] = None
     address: Optional[str] = None
     phone: Optional[str] = None
+    description: Optional[str] = None
+    conditions: Optional[List[str]] = None
+    treatments: Optional[List[dict]] = None
+    specialist_profiles: Optional[List[dict]] = None
     specialists: Optional[List[str]] = None
     lat: Optional[float] = None
     lng: Optional[float] = None
@@ -67,6 +75,23 @@ class AppointmentCreate(BaseModel):
     specialist: str
     date: str
     time: str
+
+
+class DiscoveryBookingCreate(BaseModel):
+    user_id: str
+    hospital_id: str
+    specialist_id: str
+    treatment_id: str
+    appointment_date: str
+    time_slot: str
+    patient_name: str
+    phone: str
+    notes: str = ""
+
+
+class PaymentVerification(BaseModel):
+    booking_id: str
+    payment_reference: str
 
 class DonorRegister(BaseModel):
     name: str

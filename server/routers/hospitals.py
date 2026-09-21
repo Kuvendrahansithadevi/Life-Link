@@ -1,12 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal, Optional
+from uuid import uuid4
 
 from bson import ObjectId
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from config.db import db
-from models.schemas import AppointmentCreate, HospitalBedsUpdate, HospitalBloodRequestCreate, HospitalCreate, HospitalUpdate, SpecialistAvailabilityUpdate
+from models.schemas import AppointmentCreate, DiscoveryBookingCreate, HospitalBedsUpdate, HospitalBloodRequestCreate, HospitalCreate, HospitalUpdate, SpecialistAvailabilityUpdate
 from services.location_service import calculate_distance_km
 
 
@@ -30,6 +31,10 @@ def serialize_hospital(hospital: dict, lat: float | None = None, lng: float | No
         "address": hospital.get("address", ""),
         "phone": hospital.get("phone", ""),
         "specialists": hospital.get("specialists", []),
+        "description": hospital.get("description", ""),
+        "conditions": hospital.get("conditions", []),
+        "treatments": hospital.get("treatments", []),
+        "specialist_profiles": hospital.get("specialist_profiles", []),
         "specialist_availability": hospital.get("specialist_availability", {}),
         "lat": stored_lat,
         "lng": stored_lng,
@@ -66,6 +71,9 @@ async def get_hospitals(
             {"name": {"$regex": search, "$options": "i"}},
             {"specialists": {"$regex": search, "$options": "i"}},
             {"address": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}},
+            {"conditions": {"$regex": search, "$options": "i"}},
+            {"treatments.name": {"$regex": search, "$options": "i"}},
         ]})
     if specialist:
         filters.append({"specialists": {"$regex": specialist, "$options": "i"}})
@@ -229,8 +237,13 @@ async def update_specialist_availability(
 
 
 @router.put("/{hospital_id}")
-async def update_hospital(hospital_id: str, hospital: HospitalUpdate):
-    object_id = parse_object_id(hospital_id)
+async def update_hospital(
+    hospital_id: str,
+    hospital: HospitalUpdate,
+    authorization: Optional[str] = Header(default=None),
+):
+    resolved_id = await resolve_hospital_id(hospital_id, authorization)
+    object_id = parse_object_id(resolved_id)
     updates = {key: value for key, value in hospital.model_dump(exclude_unset=True).items() if value is not None}
     if "lat" in updates or "lng" in updates:
         current = await db.hospitals.find_one({"_id": object_id})
@@ -245,6 +258,54 @@ async def update_hospital(hospital_id: str, hospital: HospitalUpdate):
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Hospital not found")
     return serialize_hospital(await db.hospitals.find_one({"_id": object_id}))
+
+
+@router.get("/{hospital_id}/availability")
+async def get_availability(hospital_id: str, specialist_id: str, appointment_date: str):
+    hospital = await db.hospitals.find_one({"_id": parse_object_id(hospital_id)})
+    if not hospital:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    specialist = next((item for item in hospital.get("specialist_profiles", []) if item.get("id") == specialist_id), None)
+    if not specialist:
+        raise HTTPException(status_code=404, detail="Specialist not found")
+    try:
+        date = datetime.strptime(appointment_date, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Date must use YYYY-MM-DD") from exc
+    day = date.strftime("%A").lower()
+    slots = []
+    for schedule in specialist.get("schedule", []):
+        if schedule.get("day", "").lower() != day:
+            continue
+        start = datetime.strptime(schedule["start_time"], "%H:%M")
+        end = datetime.strptime(schedule["end_time"], "%H:%M")
+        while start < end:
+            slots.append(start.strftime("%H:%M"))
+            start += timedelta(minutes=30)
+    booked = await db.bookings.find({"hospitalId": hospital_id, "specialistId": specialist_id, "appointmentDate": appointment_date, "paymentStatus": {"$ne": "FAILED"}}).to_list(length=None)
+    booked_slots = {item.get("timeSlot") for item in booked}
+    return {"date": appointment_date, "slots": [slot for slot in slots if slot not in booked_slots]}
+
+
+@router.post("/{hospital_id}/specialists")
+async def add_specialist(hospital_id: str, specialist: dict, authorization: Optional[str] = Header(default=None)):
+    resolved_id = await resolve_hospital_id(hospital_id, authorization)
+    specialist["id"] = specialist.get("id") or str(uuid4())
+    specialist.setdefault("schedule", [])
+    result = await db.hospitals.update_one({"_id": parse_object_id(resolved_id)}, {"$push": {"specialist_profiles": specialist}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    return specialist
+
+
+@router.post("/{hospital_id}/treatments")
+async def add_treatment(hospital_id: str, treatment: dict, authorization: Optional[str] = Header(default=None)):
+    resolved_id = await resolve_hospital_id(hospital_id, authorization)
+    treatment["id"] = treatment.get("id") or str(uuid4())
+    result = await db.hospitals.update_one({"_id": parse_object_id(resolved_id)}, {"$push": {"treatments": treatment}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Hospital not found")
+    return treatment
 
 
 @router.delete("/{hospital_id}")
