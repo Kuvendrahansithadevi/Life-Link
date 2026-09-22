@@ -343,9 +343,11 @@ async def update_hospital(
 @router.post("/{hospital_id}/specialists")
 async def add_specialist(hospital_id: str, specialist: SpecialistCreate, authorization: Optional[str] = Header(default=None)):
     resolved_id = await require_hospital_id(hospital_id, authorization)
-    specialist_data = specialist.model_dump()
+    specialist_data = specialist.model_dump(mode="json")
     specialist_data["id"] = str(uuid4())
     specialist_data["hospital_id"] = resolved_id
+    for schedule in specialist_data["schedule"]:
+        schedule["id"] = str(uuid4())
     result = await db.hospitals.update_one(
         {"_id": parse_object_id(resolved_id)},
         {"$push": {"specialist_profiles": specialist_data}, "$addToSet": {"specialists": specialist.specialization}},

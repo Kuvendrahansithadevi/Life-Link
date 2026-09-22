@@ -8,22 +8,37 @@ import {
 import { authHeaders } from "../services/api";
 
 const headers = authHeaders;
-const SPECIALIZATIONS = [
-  "General Physician",
-  "Orthopedic",
-  "Cardiologist",
-  "Pediatrician",
-];
 
 export default function DoctorChatScreen({ currentUser }) {
   const [chat, setChat] = useState(null);
+  const [specializations, setSpecializations] = useState([]);
   const [credits, setCredits] = useState(currentUser?.credits ?? null);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [specialization, setSpecialization] = useState(SPECIALIZATIONS[0]);
+  const [specialization, setSpecialization] = useState("");
   const [sessionEnded, setSessionEnded] = useState(false);
+
+  useEffect(() => {
+    const loadSpecializations = async () => {
+      try {
+        const response = await fetch("/api/doctors/specializations");
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.detail || "Could not load doctor specializations.");
+        const options = Array.isArray(data.specializations)
+          ? data.specializations
+          : [];
+        setSpecializations(options);
+        setSpecialization((current) => current || options[0] || "");
+      } catch (err) {
+        setError(err.message);
+      }
+    };
+
+    loadSpecializations();
+  }, []);
 
   const load = async () => {
     try {
@@ -165,7 +180,10 @@ export default function DoctorChatScreen({ currentUser }) {
                   onChange={(event) => setSpecialization(event.target.value)}
                   className="mt-2 block w-64 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-emerald-600"
                 >
-                  {SPECIALIZATIONS.map((option) => (
+                  {!specializations.length && (
+                    <option value="">Loading doctor specializations...</option>
+                  )}
+                  {specializations.map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
@@ -215,7 +233,7 @@ export default function DoctorChatScreen({ currentUser }) {
             />
             <button
               onClick={send}
-              disabled={sending || !text.trim()}
+              disabled={sending || !text.trim() || !specialization}
               aria-label="Send message"
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-700 text-white disabled:bg-stone-300"
             >

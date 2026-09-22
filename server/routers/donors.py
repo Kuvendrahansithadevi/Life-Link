@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/donors", tags=["Blood Mobilization Network"])
 class BloodRequestCreate(BaseModel):
     bloodGroup: str
     units: int = Field(ge=1, le=3)
+    hospitalId: Optional[str] = None
     hospitalName: str
     notes: str = ""
     requesterName: str
@@ -147,6 +148,13 @@ async def get_active_requests():
 @router.post("/requests")
 async def create_blood_request(req: BloodRequestCreate):
     document = req.model_dump()
+    if req.hospitalId:
+        if not ObjectId.is_valid(req.hospitalId):
+            raise HTTPException(status_code=400, detail="Invalid hospital ID")
+        hospital = await db.hospitals.find_one({"_id": ObjectId(req.hospitalId)}, {"name": 1})
+        if not hospital:
+            raise HTTPException(status_code=404, detail="Registered hospital not found")
+        document["hospitalName"] = hospital.get("name", req.hospitalName)
     document.update({"status": "active", "created_at": datetime.utcnow()})
     result = await db.blood_requests.insert_one(document)
     return {"success": True, "id": str(result.inserted_id)}
@@ -163,6 +171,7 @@ async def get_hospital_requests():
             "id": str(r["_id"]),
             "bloodGroup": r.get("bloodGroup", r.get("blood_group", "")),
             "units": r.get("units", r.get("quantity", 1)),
+            "hospitalId": r.get("hospitalId", ""),
             "hospitalName": r.get("hospitalName", r.get("location", "")),
             "notes": r.get("notes", ""),
             "requesterName": r.get("requesterName", ""),

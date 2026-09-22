@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from datetime import date as calendar_date, datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 from typing import List, Optional
 
 class TriageRequest(BaseModel):
@@ -66,19 +68,32 @@ class SpecialistAvailabilityUpdate(BaseModel):
 
 
 class ScheduleCreate(BaseModel):
-    day: Optional[str] = None
-    date: Optional[str] = None
-    start_time: str
-    end_time: str
+    date: calendar_date
+    start_time: str = Field(min_length=5, max_length=5)
+    end_time: str = Field(min_length=5, max_length=5)
     slot_duration: int = Field(default=30, ge=5, le=240)
     active: bool = True
+
+    @model_validator(mode="after")
+    def validate_schedule(self):
+        today = calendar_date.today()
+        if self.date < today:
+            raise ValueError("Availability date cannot be in the past")
+        try:
+            start = datetime.strptime(self.start_time, "%H:%M")
+            end = datetime.strptime(self.end_time, "%H:%M")
+        except ValueError as exc:
+            raise ValueError("Start and end time must use HH:MM format") from exc
+        if end <= start:
+            raise ValueError("End time must be after start time")
+        return self
 
 
 class SpecialistCreate(BaseModel):
     name: str
     specialization: str
     consultation_fee: Optional[float] = Field(default=None, ge=0)
-    schedule: List[ScheduleCreate] = []
+    schedule: List[ScheduleCreate] = Field(min_length=1)
 
 
 class TreatmentCreate(BaseModel):

@@ -72,9 +72,13 @@ async def create_discovery_booking(booking: DiscoveryBookingCreate, authorizatio
     for schedule in schedules:
         if schedule.get("active", True) is False:
             continue
-        if schedule.get("date") and schedule.get("date") != booking.appointment_date:
+        if not specialist and schedule.get("date") and schedule.get("date") != booking.appointment_date:
             continue
-        if not schedule.get("date") and schedule.get("day", "").lower() != day_name:
+        if specialist and schedule.get("date") != booking.appointment_date:
+            continue
+        if specialist and not schedule.get("date"):
+            continue
+        if not specialist and not schedule.get("date") and schedule.get("day", "").lower() != day_name:
             continue
         start = datetime.strptime(schedule["start_time"], "%H:%M")
         end = datetime.strptime(schedule["end_time"], "%H:%M")

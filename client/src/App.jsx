@@ -31,6 +31,7 @@ function readStoredUser() {
 export default function App() {
   const [language, setLanguage] = useState("en");
   const [tab, setTab] = useState("triage");
+  const [selectedHospital, setSelectedHospital] = useState(null);
   const [emergencyMode, setEmergencyMode] = useState(false);
   const [emergencyResult, setEmergencyResult] = useState(null);
   const t = STRINGS[language];
@@ -139,6 +140,13 @@ export default function App() {
     setRequests((rs) => [req, ...rs]);
   };
 
+  const openHospitalBooking = (hospital) => {
+    const hospitalId = hospital?.id || hospital?._id || hospital?.hospitalId;
+    if (!hospitalId) return;
+    setSelectedHospital({ ...hospital, id: String(hospitalId) });
+    setTab("hospitals");
+  };
+
   // ---- Not signed in: user auth or admin auth ----
   if (!currentUser && !isAdmin) {
     if (showLanding) {
@@ -222,11 +230,18 @@ export default function App() {
             {tab === "triage" && (
               <TriageScreen
                 onTriggerEmergency={openEmergencyMode}
+                onSelectHospitalForBooking={openHospitalBooking}
                 language={language}
                 currentUser={currentUser}
               />
             )}
-            {tab === "hospitals" && <HospitalDirectory currentUser={currentUser} />}
+            {tab === "hospitals" && (
+              <HospitalDirectory
+                currentUser={currentUser}
+                initialHospital={selectedHospital}
+                onInitialHospitalHandled={() => setSelectedHospital(null)}
+              />
+            )}
             {tab === "bookings" && <MyBookingsScreen currentUser={currentUser} />}
             {tab === "chat" && <DoctorChatScreen currentUser={currentUser} />}
             {tab === "blood" && (

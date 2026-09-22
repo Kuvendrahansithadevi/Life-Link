@@ -339,8 +339,10 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
             </div>
 
             <div className="mt-3 space-y-3">
-              {result.suggested_hospitals?.map((h) => (
-                <div key={h.id} className="flex items-center justify-between rounded-lg border border-stone-100 bg-stone-50 p-3">
+              {result.suggested_hospitals?.map((h) => {
+                const hospitalId = h.id || h._id || h.hospitalId;
+                return (
+                <div key={hospitalId} className="flex items-center justify-between rounded-lg border border-stone-100 bg-stone-50 p-3">
                   <div>
                     <h5 className="text-sm font-semibold text-stone-900">{h.name}</h5>
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-500">
@@ -348,13 +350,14 @@ export default function TriageScreen({ onTriggerEmergency, onSelectHospitalForBo
                     </p>
                   </div>
                   <button
-                    onClick={() => onSelectHospitalForBooking && onSelectHospitalForBooking(h)}
+                    onClick={() => onSelectHospitalForBooking && hospitalId && onSelectHospitalForBooking({ ...h, id: String(hospitalId) })}
                     className="flex items-center gap-1 rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-600"
                   >
                     <Calendar className="h-3.5 w-3.5" /> Book
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

@@ -48,7 +48,12 @@ async def analyze_symptom_endpoint(
         hospitals = await cursor.to_list(length=100)
 
         for h in hospitals:
-            h_specs = h.get("specialists", [])
+            profile_specs = [
+                profile.get("specialization")
+                for profile in h.get("specialist_profiles", [])
+                if profile.get("specialization")
+            ]
+            h_specs = list(dict.fromkeys([*h.get("specialists", []), *profile_specs]))
             coordinates = h.get("coordinates") or []
             h_lng = coordinates[0] if len(coordinates) >= 2 else h.get("lng")
             h_lat = coordinates[1] if len(coordinates) >= 2 else h.get("lat")
@@ -65,6 +70,7 @@ async def analyze_symptom_endpoint(
                 "waitTime": h.get("wait_time", "15 min"),
                 "availableNow": h.get("available_now", True),
                 "specialists": h_specs,
+                "specializations": h.get("specializations") or h_specs,
                 "hasSpecialist": has_specialist
             })
 

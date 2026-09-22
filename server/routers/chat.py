@@ -136,6 +136,20 @@ async def get_user_wallet(authorization: Optional[str] = Header(default=None)):
     return {"credits": user.get("credits", 0), "sessionCost": SESSION_COST}
 
 
+@router.get("/doctors/specializations")
+async def get_doctor_specializations():
+    specializations = await db.doctors.distinct(
+        "specialization",
+        {"available": True, "specialization": {"$exists": True, "$nin": [None, ""]}},
+    )
+    return {
+        "specializations": sorted(
+            {specialization.strip() for specialization in specializations if isinstance(specialization, str) and specialization.strip()},
+            key=str.casefold,
+        )
+    }
+
+
 @router.get("/chat/active")
 async def get_active_chat(authorization: Optional[str] = Header(default=None)):
     user = await require_user(authorization)
