@@ -17,6 +17,26 @@ class BookingStatusUpdate(BaseModel):
 router = APIRouter(prefix="/api/hospitals", tags=["Care Discovery & Appointments"])
 
 
+def is_specialty_on_duty(hospital: dict, specialty: str | None) -> bool:
+    if not specialty:
+        return True
+    availability = hospital.get("specialist_availability") or {}
+    normalized_specialty = specialty.strip().casefold()
+    for configured_specialty, on_duty in availability.items():
+        if str(configured_specialty).strip().casefold() == normalized_specialty:
+            return on_duty is not False
+    return True
+
+
+def filter_active_treatments(hospital: dict) -> list[dict]:
+    return [
+        treatment
+        for treatment in hospital.get("treatments") or []
+        if treatment.get("active", True) is not False
+        and is_specialty_on_duty(hospital, treatment.get("specialization"))
+    ]
+
+
 def serialize_hospital(hospital: dict, lat: float | None = None, lng: float | None = None) -> dict:
     coordinates = hospital.get("coordinates") or []
     stored_lng = coordinates[0] if len(coordinates) >= 2 else hospital.get("lng")
@@ -25,7 +45,7 @@ def serialize_hospital(hospital: dict, lat: float | None = None, lng: float | No
     if lat is not None and lng is not None and stored_lat is not None and stored_lng is not None:
         distance = calculate_distance_km(lat, lng, stored_lat, stored_lng)
 
-    treatments = hospital.get("treatments") or []
+    treatments = filter_active_treatments(hospital)
     prices = []
     for item in treatments:
         value = item.get("price", item.get("starting_price"))
@@ -108,7 +128,7 @@ async def get_hospitals(
             if item.get("active", True) is not False
             and hospital["specialist_availability"].get(item.get("specialization"), True) is not False
         ]
-        treatments = [item for item in hospital["treatments"] if item.get("active", True) is not False]
+        treatments = hospital["treatments"]
         relevant_prices = []
         if specialist:
             profiles = [

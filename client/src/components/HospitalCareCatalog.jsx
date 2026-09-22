@@ -11,6 +11,7 @@ export default function HospitalCareCatalog({ hospital, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const activeSpecialties = (hospital.specialists || []).filter((name) => hospital.specialist_availability?.[name] !== false);
   const addSpecialist = async () => {
     setSaving(true); setError("");
     try {
@@ -20,6 +21,10 @@ export default function HospitalCareCatalog({ hospital, onSaved }) {
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   };
   const addTreatment = async () => {
+    if (!activeSpecialties.includes(treatment.specialization)) {
+      setError("Select an active specialist before saving a treatment.");
+      return;
+    }
     setSaving(true); setError("");
     try {
       const response = await fetch(`/api/hospitals/${hospital.id}/treatments`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ ...treatment, price: Number(treatment.price) }) });
@@ -51,11 +56,14 @@ export default function HospitalCareCatalog({ hospital, onSaved }) {
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <input value={treatment.name} onChange={(event) => setTreatment({ ...treatment, name: event.target.value })} placeholder="Treatment name" className="rounded-md border border-stone-300 px-3 py-2 text-sm" />
             <input type="number" min="0" value={treatment.price} onChange={(event) => setTreatment({ ...treatment, price: event.target.value })} placeholder="Starting price" className="rounded-md border border-stone-300 px-3 py-2 text-sm" />
-            <input value={treatment.specialization} onChange={(event) => setTreatment({ ...treatment, specialization: event.target.value })} placeholder="Relevant specialty" className="rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            <select value={treatment.specialization} onChange={(event) => setTreatment({ ...treatment, specialization: event.target.value })} className="rounded-md border border-stone-300 px-3 py-2 text-sm">
+              <option value="">Relevant specialty</option>
+              {activeSpecialties.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
             <input value={treatment.duration} onChange={(event) => setTreatment({ ...treatment, duration: event.target.value })} placeholder="Duration" className="rounded-md border border-stone-300 px-3 py-2 text-sm" />
             <textarea value={treatment.description} onChange={(event) => setTreatment({ ...treatment, description: event.target.value })} placeholder="Short description" className="rounded-md border border-stone-300 px-3 py-2 text-sm sm:col-span-2" rows="2" />
           </div>
-          <button onClick={addTreatment} disabled={saving || !treatment.name} className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:bg-stone-300"><Save className="h-3.5 w-3.5" />Save treatment</button>
+          <button onClick={addTreatment} disabled={saving || !treatment.name || !activeSpecialties.includes(treatment.specialization)} className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:bg-stone-300"><Save className="h-3.5 w-3.5" />Save treatment</button>
         </div>
       </div>
     </section>

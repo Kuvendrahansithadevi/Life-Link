@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from config.db import db
 from models.schemas import DiscoveryBookingCreate, PaymentVerification
+from routers.hospitals import is_specialty_on_duty
 
 router = APIRouter(prefix="/api/bookings", tags=["Appointments"])
 
@@ -61,6 +62,8 @@ async def create_discovery_booking(booking: DiscoveryBookingCreate, authorizatio
     else:
         if not treatment or specialist:
             raise HTTPException(status_code=400, detail="Choose one valid treatment appointment")
+        if not is_specialty_on_duty(hospital, treatment.get("specialization")):
+            raise HTTPException(status_code=400, detail="This treatment is currently unavailable because its specialist is off duty")
         amount = treatment.get("price", treatment.get("starting_price"))
         subject_name = treatment.get("name", "Treatment")
         subject_description = treatment.get("description", "Treatment service")
