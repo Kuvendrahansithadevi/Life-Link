@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from typing import List, Optional
 
 class TriageRequest(BaseModel):
@@ -12,12 +12,14 @@ class HospitalCreate(BaseModel):
 
     name: str
     address: str
+    city: str = ""
     specialists: List[str]
     lat: float
     lng: float
     phone: str = ""
     description: str = ""
     conditions: List[str] = []
+    specializations: List[str] = []
     treatments: List[dict] = []
     specialist_profiles: List[dict] = []
     total_beds: int = Field(default=0, ge=0, alias="totalBeds")
@@ -34,9 +36,11 @@ class HospitalUpdate(BaseModel):
 
     name: Optional[str] = None
     address: Optional[str] = None
+    city: Optional[str] = None
     phone: Optional[str] = None
     description: Optional[str] = None
     conditions: Optional[List[str]] = None
+    specializations: Optional[List[str]] = None
     treatments: Optional[List[dict]] = None
     specialist_profiles: Optional[List[dict]] = None
     specialists: Optional[List[str]] = None
@@ -60,6 +64,30 @@ class SpecialistAvailabilityUpdate(BaseModel):
     specialist: str
     on_duty: bool = Field(alias="onDuty")
 
+
+class ScheduleCreate(BaseModel):
+    day: Optional[str] = None
+    date: Optional[str] = None
+    start_time: str
+    end_time: str
+    slot_duration: int = Field(default=30, ge=5, le=240)
+    active: bool = True
+
+
+class SpecialistCreate(BaseModel):
+    name: str
+    specialization: str
+    consultation_fee: Optional[float] = Field(default=None, ge=0)
+    schedule: List[ScheduleCreate] = []
+
+
+class TreatmentCreate(BaseModel):
+    name: str
+    description: str = ""
+    price: Optional[float] = Field(default=None, ge=0)
+    duration: str = ""
+    specialization: str = ""
+
 class HospitalBloodRequestCreate(BaseModel):
     blood_group: str = Field(alias="bloodGroup")
     units: int = Field(ge=1, le=3)
@@ -80,12 +108,15 @@ class AppointmentCreate(BaseModel):
 class DiscoveryBookingCreate(BaseModel):
     user_id: str
     hospital_id: str
-    specialist_id: str
-    treatment_id: str
+    appointment_type: str = Field(pattern="^(specialist|treatment)$")
+    specialist_id: Optional[str] = None
+    treatment_id: Optional[str] = None
     appointment_date: str
-    time_slot: str
+    appointment_time: str
     patient_name: str
-    phone: str
+    phone: str = Field(min_length=7, max_length=20)
+    email: EmailStr
+    age: Optional[int] = Field(default=None, ge=0, le=150)
     notes: str = ""
 
 

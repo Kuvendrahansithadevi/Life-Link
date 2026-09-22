@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Plus, Save } from "lucide-react";
 
-const emptySpecialist = { name: "", specialization: "", consultation_fee: "", day: "Monday", start_time: "09:00", end_time: "12:00" };
+const emptySpecialist = { name: "", specialization: "", consultation_fee: "", day: "Monday", start_time: "09:00", end_time: "12:00", slot_duration: 30, active: true };
 const emptyTreatment = { name: "", description: "", price: "", duration: "", specialization: "" };
 const authHeaders = () => ({ "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` });
 
@@ -14,7 +14,7 @@ export default function HospitalCareCatalog({ hospital, onSaved }) {
   const addSpecialist = async () => {
     setSaving(true); setError("");
     try {
-      const response = await fetch(`/api/hospitals/${hospital.id}/specialists`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ name: specialist.name, specialization: specialist.specialization, consultation_fee: Number(specialist.consultation_fee), schedule: [{ day: specialist.day, start_time: specialist.start_time, end_time: specialist.end_time }] }) });
+      const response = await fetch(`/api/hospitals/${hospital.id}/specialists`, { method: "POST", headers: authHeaders(), body: JSON.stringify({ name: specialist.name, specialization: specialist.specialization, consultation_fee: specialist.consultation_fee === "" ? null : Number(specialist.consultation_fee), schedule: [{ day: specialist.day, start_time: specialist.start_time, end_time: specialist.end_time, slot_duration: Number(specialist.slot_duration), active: specialist.active }] }) });
       const data = await response.json(); if (!response.ok) throw new Error(data.detail || "Could not add specialist.");
       onSaved({ ...hospital, specialist_profiles: [...(hospital.specialist_profiles || []), data] }); setSpecialist(emptySpecialist); setMessage("Specialist schedule saved.");
     } catch (err) { setError(err.message); } finally { setSaving(false); }

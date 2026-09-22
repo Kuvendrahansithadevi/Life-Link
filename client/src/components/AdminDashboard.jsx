@@ -33,7 +33,11 @@ function StatCard({ icon: Icon, label, value, accent }) {
 const emptyHospitalForm = {
   name: "",
   address: "",
+  city: "",
   phone: "",
+  description: "",
+  conditions: "",
+  specializations: "",
   specialists: "",
   lat: "",
   lng: "",
@@ -84,7 +88,11 @@ export default function AdminDashboard({ users, requests, onLogout }) {
     const payload = {
       name: hospitalForm.name.trim(),
       address: hospitalForm.address.trim(),
+      city: hospitalForm.city.trim(),
       phone: hospitalForm.phone.trim(),
+      description: hospitalForm.description.trim(),
+      conditions: hospitalForm.conditions.split(",").map((item) => item.trim()).filter(Boolean),
+      specializations: hospitalForm.specializations.split(",").map((item) => item.trim()).filter(Boolean),
       specialists: specialistsList.length ? specialistsList : ["General Physician"],
       lat: Number(hospitalForm.lat),
       lng: Number(hospitalForm.lng),
@@ -125,6 +133,8 @@ export default function AdminDashboard({ users, requests, onLogout }) {
       ...emptyHospitalForm,
       ...hospital,
       specialists: (hospital.specialists || []).join(", "),
+      conditions: (hospital.conditions || []).join(", "),
+      specializations: (hospital.specializations || hospital.specialists || []).join(", "),
       waitTime: hospital.wait_time || "15 min",
       availableNow: hospital.available_now ?? true,
     });
@@ -211,6 +221,18 @@ export default function AdminDashboard({ users, requests, onLogout }) {
               />
             </div>
             <div>
+              <label className="mb-1 block text-xs font-medium text-stone-600">City</label>
+              <input value={hospitalForm.city} onChange={(e) => setHospitalForm({ ...hospitalForm, city: e.target.value })} placeholder="City" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-stone-600">Description</label>
+              <textarea value={hospitalForm.description} onChange={(e) => setHospitalForm({ ...hospitalForm, description: e.target.value })} placeholder="Verified description provided by the hospital" className="min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-stone-600">Conditions treated (comma separated)</label>
+              <input value={hospitalForm.conditions} onChange={(e) => setHospitalForm({ ...hospitalForm, conditions: e.target.value })} placeholder="Enter only conditions this hospital has verified" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-stone-600">Latitude</label>
               <input type="number" step="any" value={hospitalForm.lat} onChange={(e) => setHospitalForm({ ...hospitalForm, lat: e.target.value })} placeholder="13.8285" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
             </div>
@@ -270,6 +292,10 @@ export default function AdminDashboard({ users, requests, onLogout }) {
                 placeholder="e.g. Cardiologist, General Physician, Pediatrician"
                 className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-stone-600">Specializations (comma separated)</label>
+              <input value={hospitalForm.specializations} onChange={(e) => setHospitalForm({ ...hospitalForm, specializations: e.target.value })} placeholder="Cardiology, Neurology" className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm" />
             </div>
             <label className="flex items-center gap-2 text-sm text-stone-700 sm:col-span-2">
               <input
