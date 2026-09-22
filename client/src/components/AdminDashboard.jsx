@@ -7,6 +7,7 @@ import {
   Droplet,
   ClipboardList,
   Building2,
+  Stethoscope,
   Plus,
   Trash2,
   Pencil,
@@ -51,6 +52,8 @@ const emptyHospitalForm = {
   temporaryPassword: "",
 };
 
+const emptyDoctorForm = { name: "", specialization: "General Physician", email: "" };
+
 export default function AdminDashboard({ users, requests, onLogout }) {
   const donors = users.filter((u) => u.isDonor);
 
@@ -60,6 +63,14 @@ export default function AdminDashboard({ users, requests, onLogout }) {
   const [added, setAdded] = useState(false);
   const [credentials, setCredentials] = useState(null);
   const [error, setError] = useState("");
+  const [doctorForm, setDoctorForm] = useState(emptyDoctorForm);
+  const [doctors, setDoctors] = useState([]);
+  const [doctorCredentials, setDoctorCredentials] = useState(null);
+
+  const adminHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  });
 
   const loadHospitals = async () => {
     try {
@@ -73,7 +84,45 @@ export default function AdminDashboard({ users, requests, onLogout }) {
 
   useEffect(() => {
     loadHospitals();
+    loadDoctors();
   }, []);
+
+  const loadDoctors = async () => {
+    try {
+      const response = await fetch("/api/admin/doctors", { headers: adminHeaders() });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Could not load doctors.");
+      setDoctors(data.doctors || []);
+    } catch (err) {
+      setError(err.message || "Could not load doctors.");
+    }
+  };
+
+  const submitDoctor = async () => {
+    if (!doctorForm.name.trim() || !doctorForm.specialization.trim() || !doctorForm.email.trim()) {
+      setError("Doctor name, specialization, and email are required.");
+      return;
+    }
+    try {
+      const response = await fetch("/api/admin/doctors/add", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          name: doctorForm.name.trim(),
+          specialization: doctorForm.specialization.trim(),
+          email: doctorForm.email.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Could not add doctor.");
+      setDoctors((current) => [data.doctor, ...current]);
+      setDoctorCredentials({ ...data.credentials, loginToken: data.loginToken });
+      setDoctorForm(emptyDoctorForm);
+      setError("");
+    } catch (err) {
+      setError(err.message || "Could not add doctor.");
+    }
+  };
 
   const submitHospital = async () => {
     if (!hospitalForm.name.trim() || !hospitalForm.address.trim() || !hospitalForm.lat || !hospitalForm.lng) return;
@@ -185,6 +234,24 @@ export default function AdminDashboard({ users, requests, onLogout }) {
           <StatCard icon={Droplet} label="Registered donors" value={donors.length} accent="bg-red-600" />
           <StatCard icon={ClipboardList} label="Active blood requests" value={requests.length} accent="bg-amber-600" />
           <StatCard icon={Building2} label="Partner hospitals" value={hospitals.length} accent="bg-sky-600" />
+        </div>
+
+        <div className="mt-8 rounded-xl border border-emerald-100 bg-white p-5 shadow-sm shadow-emerald-900/5">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-stone-800">
+            <Stethoscope className="h-4 w-4 text-emerald-700" /> Add a doctor
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <input value={doctorForm.name} onChange={(e) => setDoctorForm({ ...doctorForm, name: e.target.value })} placeholder="Doctor name" className="rounded-md border border-stone-300 px-3 py-2 text-sm" />
+            <select value={doctorForm.specialization} onChange={(e) => setDoctorForm({ ...doctorForm, specialization: e.target.value })} className="rounded-md border border-stone-300 px-3 py-2 text-sm">
+              {['General Physician', 'Orthopedic', 'Cardiologist', 'Pediatrician', 'Neurologist', 'Dermatologist'].map((specialization) => <option key={specialization}>{specialization}</option>)}
+            </select>
+            <input type="email" value={doctorForm.email} onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })} placeholder="doctor@example.com" className="rounded-md border border-stone-300 px-3 py-2 text-sm" />
+          </div>
+          <button type="button" onClick={submitDoctor} className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600"><Plus className="h-4 w-4" /> Add doctor</button>
+          {doctorCredentials && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900"><p className="font-semibold">Doctor login created</p><p className="mt-1">Email: <span className="font-mono">{doctorCredentials.email}</span></p><p>Password: <span className="font-mono">{doctorCredentials.temporaryPassword}</span></p><p className="mt-1 break-all">Token: <span className="font-mono">{doctorCredentials.loginToken}</span></p></div>}
+          <div className="mt-5 space-y-2">
+            {doctors.map((doctor) => <div key={doctor.id} className="flex items-center justify-between rounded-lg border border-stone-200 px-3 py-2 text-sm"><span><b>{doctor.name}</b><span className="ml-2 text-xs text-stone-500">{doctor.specialization} · {doctor.email}</span></span><span className={`rounded-full px-2 py-1 text-xs font-medium ${doctor.available ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-500"}`}>{doctor.available ? "Available" : "Offline"}</span></div>)}
+          </div>
         </div>
 
         {/* Add a hospital */}
