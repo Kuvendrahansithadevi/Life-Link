@@ -5,6 +5,7 @@ from uuid import uuid4
 from bson import ObjectId
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
+from pymongo.errors import DuplicateKeyError
 
 from config.db import db
 from models.schemas import AppointmentCreate, DiscoveryBookingCreate, HospitalBedsUpdate, HospitalBloodRequestCreate, HospitalCreate, HospitalUpdate, SpecialistAvailabilityUpdate, SpecialistCreate, TreatmentCreate
@@ -211,26 +212,40 @@ async def get_my_hospital(
 @router.post("")
 async def add_hospital(hospital: HospitalCreate):
     document = hospital.model_dump()
-    staff_email = document.pop("staff_email")
+    staff_email = str(document.pop("staff_email")).strip().casefold()
     temporary_password = document.pop("temporary_password")
+    staff_username = hospital.name.strip()
+    existing_hospital_staff = await db.hospitals.find_one(
+        {"$or": [{"staff_email": staff_email}, {"staff_username": staff_username}]},
+        {"_id": 1, "staff_email": 1, "staff_username": 1},
+    )
+    if existing_hospital_staff:
+        if existing_hospital_staff.get("staff_email") == staff_email:
+            raise HTTPException(status_code=400, detail="Hospital staff email already exists")
+        raise HTTPException(status_code=400, detail="Hospital staff username already exists")
+
+    document["staff_email"] = staff_email
+    document["staff_username"] = staff_username
     document["coordinates"] = [hospital.lng, hospital.lat]
     document.pop("lat", None)
     document.pop("lng", None)
     result = await db.hospitals.insert_one(document)
     created = await db.hospitals.find_one({"_id": result.inserted_id})
     hospital_id = str(result.inserted_id)
-    existing_staff = await db.users.find_one({"$or": [{"email": staff_email}, {"username": hospital.name}]})
-    if existing_staff:
+    try:
+        await db.users.insert_one({
+            "username": staff_username,
+            "email": staff_email,
+            "password": temporary_password,
+            "role": "hospital",
+            "hospitalId": hospital_id,
+            "created_at": datetime.utcnow(),
+        })
+    except DuplicateKeyError as exc:
         await db.hospitals.delete_one({"_id": result.inserted_id})
-        raise HTTPException(status_code=400, detail="Hospital staff email or username already exists")
-    await db.users.insert_one({
-        "username": hospital.name,
-        "email": staff_email,
-        "password": temporary_password,
-        "role": "hospital",
-        "hospitalId": hospital_id,
-        "created_at": datetime.utcnow(),
-    })
+        if "email" in str(exc).lower():
+            raise HTTPException(status_code=400, detail="Hospital staff email already exists") from exc
+        raise HTTPException(status_code=400, detail="Hospital staff username already exists") from exc
     return {
         "hospital": serialize_hospital(created),
         "credentials": {"email": staff_email, "temporaryPassword": temporary_password},

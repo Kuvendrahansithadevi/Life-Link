@@ -163,8 +163,21 @@ export default function AdminDashboard({ users, requests, onLogout }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Could not save hospital.");
-      const savedHospital = await response.json();
+      const responseData = await response.json().catch(() => null);
+      if (!response.ok) {
+        console.error("Hospital save failed", {
+          status: response.status,
+          statusText: response.statusText,
+          response: responseData,
+          payload,
+        });
+        const detail = responseData?.detail;
+        const message = Array.isArray(detail)
+          ? detail.map((item) => `${item.loc?.join(".") || "request"}: ${item.msg}`).join("; ")
+          : detail;
+        throw new Error(message || `Could not save hospital (${response.status}).`);
+      }
+      const savedHospital = responseData || {};
       await loadHospitals();
       setHospitalForm(emptyHospitalForm);
       setEditingId(null);
@@ -172,6 +185,7 @@ export default function AdminDashboard({ users, requests, onLogout }) {
       setAdded(true);
       setTimeout(() => setAdded(false), 2500);
     } catch (err) {
+      console.error("Hospital save failed:", err);
       setError(err.message || "Could not save hospital.");
     }
   };

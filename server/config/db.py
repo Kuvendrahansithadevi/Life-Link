@@ -15,10 +15,31 @@ db = client[DB_NAME]
 def get_db():
     return db
 
+async def drop_legacy_unique_indexes():
+    """Remove uniqueness rules from fields that are no longer globally unique."""
+    collections = set(await db.list_collection_names())
+    if "users" in collections:
+        for index in await db.users.list_indexes().to_list(length=None):
+            if index.get("unique") and "username" in index.get("key", {}):
+                await db.users.drop_index(index["name"])
+
+    for collection_name in ("hospitals", "staff", "hospital_staff"):
+        if collection_name not in collections:
+            continue
+        collection = db[collection_name]
+        for index in await collection.list_indexes().to_list(length=None):
+            index_keys = index.get("key", {})
+            is_hospital_staff_index = any(key in index_keys for key in ("staff_email", "staff_username"))
+            if index["name"] != "_id_" and (index.get("unique") or is_hospital_staff_index):
+                await collection.drop_index(index["name"])
+
 async def init_db():
     await db.command("ping")
+    await drop_legacy_unique_indexes()
     await db.donors.create_index([("coordinates", "2dsphere")])
     await db.hospitals.create_index([("coordinates", "2dsphere")])
+    await db.hospitals.create_index("staff_email", unique=True, sparse=True)
+    await db.hospitals.create_index("staff_username", unique=True, sparse=True)
     await db.bookings.create_index("slotKey", unique=True, sparse=True)
     await db.users.create_index("email", unique=True, sparse=True)
     await db.chats.create_index([("userId", 1), ("status", 1)])

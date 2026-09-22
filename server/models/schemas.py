@@ -20,17 +20,17 @@ class HospitalCreate(BaseModel):
     lng: float
     phone: str = ""
     description: str = ""
-    conditions: List[str] = []
-    specializations: List[str] = []
-    treatments: List[dict] = []
-    specialist_profiles: List[dict] = []
+    conditions: List[str] = Field(default_factory=list)
+    specializations: List[str] = Field(default_factory=list)
+    treatments: List[dict] = Field(default_factory=list)
+    specialist_profiles: List[dict] = Field(default_factory=list)
     total_beds: int = Field(default=0, ge=0, alias="totalBeds")
     icu_beds: int = Field(default=0, ge=0, alias="icuBeds")
     available_beds: int = Field(default=0, ge=0, alias="availableBeds")
     available_now: bool = Field(default=True, alias="availableNow")
     rating: Optional[float] = 4.5
     wait_time: Optional[str] = Field(default="15 min", alias="waitTime")
-    staff_email: str = Field(alias="staffEmail")
+    staff_email: EmailStr = Field(alias="staffEmail")
     temporary_password: str = Field(alias="temporaryPassword", min_length=1)
 
 class HospitalUpdate(BaseModel):
