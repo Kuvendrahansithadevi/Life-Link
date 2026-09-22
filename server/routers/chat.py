@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 from typing import Optional
 
 from bson import ObjectId
@@ -16,11 +17,10 @@ DOCTOR_SHARE = 0.70
 class ChatMessageRequest(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     consultation_id: Optional[str] = None
-    doctor_id: Optional[str] = None
 
 
 class ChatStartRequest(BaseModel):
-    doctor_id: Optional[str] = None
+    specialization: str = Field(min_length=1, max_length=100)
 
 
 class DoctorReplyRequest(BaseModel):
@@ -94,12 +94,37 @@ async def require_doctor(authorization: Optional[str]) -> dict:
     return doctor
 
 
-async def doctor_for_chat(doctor_id: Optional[str]) -> dict:
-    query = {"_id": object_id(doctor_id, "doctor ID")} if doctor_id else {"available": True}
-    doctor = await db.doctors.find_one(query)
-    if not doctor:
-        raise HTTPException(status_code=503, detail="No doctor is currently available")
-    return doctor
+async def doctor_for_chat(specialization: str) -> dict:
+    doctors = [doctor async for doctor in db.doctors.find({
+        "available": True,
+        "specialization": {"$regex": f"^{re.escape(specialization.strip())}$", "$options": "i"},
+    })]
+    if not doctors:
+        raise HTTPException(status_code=503, detail=f"No available doctor was found for {specialization.strip()}")
+
+    queue = []
+    for doctor in doctors:
+        active_chats = await db.chats.count_documents({
+            "doctorId": str(doctor["_id"]),
+            "status": "active",
+        })
+        queue.append((active_chats, doctor.get("updated_at", datetime.min), doctor))
+    queue.sort(key=lambda item: (item[0], item[1]))
+    return queue[0][2]
+
+
+async def close_chat_for_doctor(consultation_id: str, doctor: dict) -> dict:
+    result = await db.chats.update_one(
+        {
+            "_id": object_id(consultation_id, "consultation ID"),
+            "doctorId": str(doctor["_id"]),
+            "status": "active",
+        },
+        {"$set": {"status": "closed", "updated_at": datetime.utcnow()}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Active consultation not found")
+    return {"closed": True, "consultationId": consultation_id}
 
 
 @router.get("/user/wallet")
@@ -125,7 +150,7 @@ async def start_chat(request: ChatStartRequest, authorization: Optional[str] = H
     if existing_chat:
         return {"chat": serialize_chat(existing_chat), "credits": user.get("credits", 0), "started": False}
 
-    doctor = await doctor_for_chat(request.doctor_id)
+    doctor = await doctor_for_chat(request.specialization)
     updated_user = await db.users.find_one_and_update(
         {"_id": user["_id"], "credits": {"$gte": SESSION_COST}},
         {"$inc": {"credits": -SESSION_COST}},
@@ -182,6 +207,12 @@ async def send_chat_message(request: ChatMessageRequest, authorization: Optional
     return {"chat": serialize_chat(chat), "credits": user.get("credits", 0)}
 
 
+@router.post("/doctor/chat/{consultation_id}/close")
+async def doctor_close_chat(consultation_id: str, authorization: Optional[str] = Header(default=None)):
+    doctor = await require_doctor(authorization)
+    return await close_chat_for_doctor(consultation_id, doctor)
+
+
 @router.get("/doctor/chats")
 async def get_doctor_chats(authorization: Optional[str] = Header(default=None)):
     doctor = await require_doctor(authorization)
@@ -189,20 +220,24 @@ async def get_doctor_chats(authorization: Optional[str] = Header(default=None)):
     return {"chats": chats, "earnings": doctor.get("earnings", 0), "wallet": doctor.get("wallet", doctor.get("earnings", 0))}
 
 
-@router.post("/doctor/reply")
-async def doctor_reply(request: DoctorReplyRequest, authorization: Optional[str] = Header(default=None)):
+@router.post("/doctor/chat/{consultation_id}/reply")
+async def doctor_reply(consultation_id: str, request: DoctorReplyRequest, authorization: Optional[str] = Header(default=None)):
     doctor = await require_doctor(authorization)
-    chat_id = object_id(request.consultation_id, "consultation ID")
+    chat_id = object_id(consultation_id, "consultation ID")
     chat = await db.chats.find_one({"_id": chat_id, "doctorId": str(doctor["_id"]), "status": "active"})
     if not chat:
         raise HTTPException(status_code=404, detail="Active consultation not found")
+
     share = round(chat.get("sessionCost", SESSION_COST) * DOCTOR_SHARE, 2) if not chat.get("doctorShareCredited") else 0
     reply = {"sender": "doctor", "text": request.text.strip(), "timestamp": datetime.utcnow(), "creditCost": 0, "credited": True}
     update = {"$push": {"messages": reply}, "$set": {"updated_at": datetime.utcnow()}}
+
     if share:
         update["$set"]["doctorShareCredited"] = True
     await db.chats.update_one({"_id": chat_id}, update)
+
     if share:
         await db.doctors.update_one({"_id": doctor["_id"]}, {"$inc": {"earnings": share, "wallet": share}})
+
     updated = await db.chats.find_one({"_id": chat_id})
     return {"chat": serialize_chat(updated), "earned": share}

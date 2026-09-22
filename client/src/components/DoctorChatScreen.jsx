@@ -8,6 +8,12 @@ import {
 import { authHeaders } from "../services/api";
 
 const headers = authHeaders;
+const SPECIALIZATIONS = [
+  "General Physician",
+  "Orthopedic",
+  "Cardiologist",
+  "Pediatrician",
+];
 
 export default function DoctorChatScreen({ currentUser }) {
   const [chat, setChat] = useState(null);
@@ -16,6 +22,8 @@ export default function DoctorChatScreen({ currentUser }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [specialization, setSpecialization] = useState(SPECIALIZATIONS[0]);
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   const load = async () => {
     try {
@@ -31,7 +39,10 @@ export default function DoctorChatScreen({ currentUser }) {
         throw new Error(
           walletData.detail || "Could not load your credit wallet.",
         );
-      setChat(chatData);
+      setChat((previousChat) => {
+        if (previousChat?.id && !chatData) setSessionEnded(true);
+        return chatData;
+      });
       setCredits(walletData.credits);
       setError("");
     } catch (err) {
@@ -57,7 +68,7 @@ export default function DoctorChatScreen({ currentUser }) {
         const startResponse = await fetch("/api/chat/start", {
           method: "POST",
           headers: headers(),
-          body: JSON.stringify({}),
+          body: JSON.stringify({ specialization }),
         });
         const startData = await startResponse.json();
         if (!startResponse.ok)
@@ -65,6 +76,7 @@ export default function DoctorChatScreen({ currentUser }) {
         consultationId = startData.chat.id;
         setChat(startData.chat);
         setCredits(startData.credits);
+        setSessionEnded(false);
       }
 
       const response = await fetch("/api/chat/send", {
@@ -116,6 +128,11 @@ export default function DoctorChatScreen({ currentUser }) {
           {error}
         </p>
       )}
+      {sessionEnded && !chat && (
+        <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Your doctor ended this consultation. Choose a specialization and send a new message to start another session for {5} credits.
+        </p>
+      )}
       <section className="mt-6 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
         <header className="flex items-center gap-3 border-b border-stone-100 px-5 py-4">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
@@ -141,10 +158,22 @@ export default function DoctorChatScreen({ currentUser }) {
           ) : !chat ? (
             <div className="flex h-72 flex-col items-center justify-center text-center">
               <MessageCircle className="h-10 w-10 text-emerald-600" />
-              <p className="mt-3 font-semibold">Start a consultation</p>
+              <label className="mt-3 text-left text-sm font-semibold">
+                Medical specialization
+                <select
+                  value={specialization}
+                  onChange={(event) => setSpecialization(event.target.value)}
+                  className="mt-2 block w-64 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-emerald-600"
+                >
+                  {SPECIALIZATIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <p className="mt-1 max-w-sm text-sm text-stone-500">
-                Send your first message and a doctor will receive it in the
-                active queue.
+                Send your first message and we will route it to an available matching doctor.
               </p>
             </div>
           ) : (
