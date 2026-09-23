@@ -9,7 +9,26 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+
+TRIAGE_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "disease_name": {"type": "string", "description": "Potential condition or symptom-based observation, not a definitive diagnosis."},
+        "cause": {"type": "string", "description": "Likely cause or explanation."},
+        "urgency": {"type": "string", "enum": ["High", "Medium", "Low"]},
+        "triggerEmergency": {"type": "boolean"},
+        "specialist": {"type": "string"},
+        "remedies": {"type": "array", "items": {"type": "string"}},
+        "precautions": {"type": "array", "items": {"type": "string"}},
+        "visual_findings": {"type": "string"},
+        "guidance": {"type": "string"}
+    },
+    "required": [
+        "disease_name", "cause", "urgency", "triggerEmergency", "specialist",
+        "remedies", "precautions", "visual_findings", "guidance"
+    ]
+}
 
 # Deterministic Clinical Rule Engine (Failsafe for critical red-flags)
 CRITICAL_KEYWORDS = [
@@ -21,7 +40,7 @@ CRITICAL_KEYWORDS = [
 ]
 
 LOW_KEYWORDS = [
-    "mild headache", "small cut", "minor scratch", "tired",
+    "headache", "small cut", "minor scratch", "tired",
     "mild cold", "runny nose", "slight cough", "sneezing"
 ]
 
@@ -50,6 +69,8 @@ def rule_based_triage(text: str):
     for kw in LOW_KEYWORDS:
         if kw in t:
             return {
+                "disease_name": "Mild headache" if "headache" in t else "Low-urgency symptom",
+                "cause": "Common causes include minor illness, stress, dehydration, or irritation; the cause cannot be confirmed from text alone.",
                 "urgency": "Low",
                 "triggerEmergency": False,
                 "specialist": "General Physician",
@@ -67,6 +88,32 @@ def rule_based_triage(text: str):
             }
     return None
 
+def normalize_triage_result(result: dict, language: str):
+    """Keep model output compatible with the fields rendered by the triage UI."""
+    normalized = {
+        "disease_name": result.get("disease_name") or result.get("predicted_condition") or result.get("condition"),
+        "cause": result.get("cause") or result.get("likely_cause"),
+        "urgency": result.get("urgency"),
+        "triggerEmergency": result.get("triggerEmergency", result.get("trigger_emergency", False)),
+        "specialist": result.get("specialist") or "General Physician",
+        "remedies": result.get("remedies") or result.get("recommendations") or [],
+        "precautions": result.get("precautions") or [],
+        "visual_findings": result.get("visual_findings") or "none",
+        "guidance": result.get("guidance") or result.get("recommendation") or "Please consult a healthcare professional for evaluation."
+    }
+
+    if normalized["urgency"] not in {"High", "Medium", "Low"}:
+        raise ValueError(f"Gemini returned invalid urgency: {normalized['urgency']!r}")
+    if not normalized["disease_name"] or not normalized["cause"]:
+        raise ValueError("Gemini response omitted the condition or likely cause.")
+    if not isinstance(normalized["remedies"], list) or not isinstance(normalized["precautions"], list):
+        raise ValueError("Gemini response returned non-list recommendations or precautions.")
+
+    normalized["triggerEmergency"] = bool(normalized["triggerEmergency"])
+    normalized["remedies"] = [str(item) for item in normalized["remedies"]]
+    normalized["precautions"] = [str(item) for item in normalized["precautions"]]
+    return normalized
+
 async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes = None, mime_type: str = "image/jpeg"):
     # 1. Run deterministic check first
     quick_match = rule_based_triage(text)
@@ -80,7 +127,7 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
             raise ValueError("GEMINI_API_KEY not found in environment.")
 
         system_instruction = (
-            "You are an expert clinical dermatologist and emergency triage AI. "
+            "You are a cautious clinical triage AI, not a substitute for an in-person clinician. "
             "Analyze patient text notes and any attached medical image. When a patient uploads a skin image "
             "or describes physical marks such as rashes, eczema, ringworm, burns, psoriasis, acne, or similar "
             "skin findings:\n"
@@ -96,8 +143,8 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
             "- Urgency 'Low' for mild cold, light headaches, minor abrasions.\n"
             "Respond strictly in raw JSON without Markdown formatting using this structure:\n"
             "{\n"
-            '  "disease_name": "Name of the skin condition or observation",\n'
-            '  "cause": "Clear explanation of why this occurs",\n'
+            '  "disease_name": "Potential condition or symptom-based observation, never a definitive diagnosis",\n'
+            '  "cause": "Clear explanation of the likely cause",\n'
             '  "urgency": "High" | "Medium" | "Low",\n'
             '  "triggerEmergency": true | false,\n'
             '  "specialist": "Specialty Name",\n'
@@ -119,7 +166,8 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 temperature=0.2,
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                response_schema=TRIAGE_RESPONSE_SCHEMA
             )
         )
 
@@ -128,7 +176,7 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
             raise ValueError("Gemini returned an empty response.")
         cleaned_text = re.sub(r"^```json\s*", "", cleaned_text)
         cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
-        result = json.loads(cleaned_text)
+        result = normalize_triage_result(json.loads(cleaned_text), language)
 
         # Enforce cardiac rule safety net
         if any(w in text.lower() for w in ["heart", "chest pain"]):
@@ -139,7 +187,12 @@ async def analyze_symptoms(text: str, language: str = "en", image_bytes: bytes =
         return result
 
     except Exception as e:
-        print(f"Gemini API request failed; using explicit safety fallback. Exception: {e!r}", flush=True)
+        print(
+            f"Gemini API request failed for model {GEMINI_MODEL!r} "
+            f"(api key configured: {bool(GEMINI_API_KEY)}); using explicit safety fallback. "
+            f"{type(e).__name__}: {e}",
+            flush=True
+        )
         print(traceback.format_exc(), flush=True)
         # Return fallback with actionable remedies rather than empty defaults
         if quick_match:
