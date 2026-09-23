@@ -93,7 +93,7 @@ const teamMembers = [
   },
   {
     name: "Madhu Sree Nallamsetti",
-    role: "Creative Director & UI Designer",
+    role: "Frontend & Creative Developer",
     image: "/team/Madhu.jpeg",
   },
 ];
